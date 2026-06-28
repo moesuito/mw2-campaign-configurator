@@ -19,6 +19,7 @@ The campaign settings screen can fail to save changes in some current game build
 - Automatically detects the default `Documents\Call of Duty MWII` folder.
 - Supports multiple Steam/profile folders under `players`.
 - Shows all editable options found in the campaign-effective text config files.
+- Detects Windows displays and exposes monitor-specific resolution and refresh-rate choices.
 - Uses control types based on the game's own metadata:
   - checkboxes for true/false options
   - dropdowns for `one of [...]` options
@@ -31,6 +32,9 @@ The campaign settings screen can fail to save changes in some current game build
 - Hides only DLSS and DLAA on non-RTX GPUs based on the detected `GPUName` value. FSR and XeSS remain available across GPU vendors.
 - Creates timestamped backups before saving.
 - Saves and reapplies read-only attributes to the edited files.
+- Includes a bottom-bar file lock toggle:
+  - `Unlock Files` appears when the loaded files are read-only.
+  - `Lock Files` appears when the loaded files are writable.
 - Portable `.exe`, no installer required.
 
 ## Edited Files
@@ -62,7 +66,7 @@ Put it anywhere you like and run it. Backups are created next to the executable 
 8. Click `Save Settings`.
 9. Start the campaign.
 
-Use `Unlock Files` if you want the game to be able to write to the edited config files again.
+Use the bottom-bar lock toggle if you want to temporarily unlock the loaded files or lock them again after manual edits.
 
 ## Presets
 

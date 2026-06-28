@@ -10,10 +10,11 @@ MW2 Campaign Configurator is a small PyQt6 desktop app that edits the readable c
    - `players\options.3.cod22.cst`
    - `players\<profile-id>\settings.3.local.cod22.cst`
 4. Parse option entries from the game's own text metadata.
-5. Render cached entries in a PyQt6 tree UI.
-6. Mutate values in memory while the user edits.
-7. On `Save Settings`, create backups, remove read-only, write files, and reapply read-only.
-8. Reload files after save/restore so the UI reflects disk state.
+5. Discover Windows display modes for monitor, resolution, and refresh-rate controls.
+6. Render cached entries in a PyQt6 tree UI.
+7. Mutate values in memory while the user edits.
+8. On `Save Settings`, create backups, remove read-only, write files, and reapply read-only.
+9. Reload files after save/restore so the UI reflects disk state.
 
 Menu changes, search, Normal/Advanced mode, anti-aliasing changes, and sidebar navigation do not reread files. They re-render cached entries already held in RAM.
 
@@ -44,8 +45,15 @@ The app uses PyQt6:
 - `QTreeWidget` renders subcategories and option rows.
 - `SliderEditor` combines a horizontal slider with a numeric spinbox for practical ranged values.
 - Dark mode styling is applied through a local Qt stylesheet.
+- The bottom bar includes a read-only aware lock toggle. It shows `Unlock Files` when the loaded files are locked and `Lock Files` when the files are writable.
 
 The tree layout intentionally groups settings by behavior rather than raw file order. `entry_subcategory()` decides the subcategory for each option.
+
+## Display Modes
+
+On Windows, `discover_windows_displays()` uses `EnumDisplayDevicesW` and `EnumDisplaySettingsW` to build a list of attached displays and their supported resolution/refresh-rate pairs.
+
+When the user changes the preferred monitor, the app refreshes the available `Resolution` and `RefreshRate` values from the selected display. The current config value is preserved as a fallback option if it is not reported by Windows.
 
 ## Normal vs Advanced
 

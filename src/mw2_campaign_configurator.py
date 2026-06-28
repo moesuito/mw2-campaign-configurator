@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import datetime as dt
+import ctypes
 import pathlib
 import re
 import shutil
 import stat
 import sys
 from dataclasses import dataclass
+from ctypes import wintypes
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
@@ -511,6 +513,127 @@ class ConfigDocument:
         self.path.write_text(self.render(), encoding="utf-8")
 
 
+@dataclass(frozen=True)
+class DisplayMode:
+    width: int
+    height: int
+    refresh_rate: int
+
+    @property
+    def resolution(self) -> str:
+        return f"{self.width}x{self.height}"
+
+
+@dataclass
+class DisplayInfo:
+    name: str
+    device_name: str
+    modes: list[DisplayMode]
+
+
+class POINTL(ctypes.Structure):
+    _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long)]
+
+
+class DISPLAY_DEVICEW(ctypes.Structure):
+    _fields_ = [
+        ("cb", wintypes.DWORD),
+        ("DeviceName", wintypes.WCHAR * 32),
+        ("DeviceString", wintypes.WCHAR * 128),
+        ("StateFlags", wintypes.DWORD),
+        ("DeviceID", wintypes.WCHAR * 128),
+        ("DeviceKey", wintypes.WCHAR * 128),
+    ]
+
+
+class DEVMODEW(ctypes.Structure):
+    _fields_ = [
+        ("dmDeviceName", wintypes.WCHAR * 32),
+        ("dmSpecVersion", wintypes.WORD),
+        ("dmDriverVersion", wintypes.WORD),
+        ("dmSize", wintypes.WORD),
+        ("dmDriverExtra", wintypes.WORD),
+        ("dmFields", wintypes.DWORD),
+        ("dmPosition", POINTL),
+        ("dmDisplayOrientation", wintypes.DWORD),
+        ("dmDisplayFixedOutput", wintypes.DWORD),
+        ("dmColor", wintypes.SHORT),
+        ("dmDuplex", wintypes.SHORT),
+        ("dmYResolution", wintypes.SHORT),
+        ("dmTTOption", wintypes.SHORT),
+        ("dmCollate", wintypes.SHORT),
+        ("dmFormName", wintypes.WCHAR * 32),
+        ("dmLogPixels", wintypes.WORD),
+        ("dmBitsPerPel", wintypes.DWORD),
+        ("dmPelsWidth", wintypes.DWORD),
+        ("dmPelsHeight", wintypes.DWORD),
+        ("dmDisplayFlags", wintypes.DWORD),
+        ("dmDisplayFrequency", wintypes.DWORD),
+        ("dmICMMethod", wintypes.DWORD),
+        ("dmICMIntent", wintypes.DWORD),
+        ("dmMediaType", wintypes.DWORD),
+        ("dmDitherType", wintypes.DWORD),
+        ("dmReserved1", wintypes.DWORD),
+        ("dmReserved2", wintypes.DWORD),
+        ("dmPanningWidth", wintypes.DWORD),
+        ("dmPanningHeight", wintypes.DWORD),
+    ]
+
+
+def discover_windows_displays() -> list[DisplayInfo]:
+    if sys.platform != "win32":
+        return []
+
+    user32 = ctypes.windll.user32
+    enum_display_devices = user32.EnumDisplayDevicesW
+    enum_display_devices.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, ctypes.POINTER(DISPLAY_DEVICEW), wintypes.DWORD]
+    enum_display_devices.restype = wintypes.BOOL
+    enum_display_settings = user32.EnumDisplaySettingsW
+    enum_display_settings.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, ctypes.POINTER(DEVMODEW)]
+    enum_display_settings.restype = wintypes.BOOL
+
+    attached_to_desktop = 0x00000001
+    displays: list[DisplayInfo] = []
+    adapter_index = 0
+    while True:
+        adapter = DISPLAY_DEVICEW()
+        adapter.cb = ctypes.sizeof(DISPLAY_DEVICEW)
+        if not enum_display_devices(None, adapter_index, ctypes.byref(adapter), 0):
+            break
+        adapter_index += 1
+        if not adapter.StateFlags & attached_to_desktop:
+            continue
+
+        monitor_name = ""
+        monitor = DISPLAY_DEVICEW()
+        monitor.cb = ctypes.sizeof(DISPLAY_DEVICEW)
+        if enum_display_devices(adapter.DeviceName, 0, ctypes.byref(monitor), 0):
+            monitor_name = monitor.DeviceString
+
+        modes_by_key: dict[tuple[int, int, int], DisplayMode] = {}
+        mode_index = 0
+        while True:
+            devmode = DEVMODEW()
+            devmode.dmSize = ctypes.sizeof(DEVMODEW)
+            if not enum_display_settings(adapter.DeviceName, mode_index, ctypes.byref(devmode)):
+                break
+            mode_index += 1
+            if devmode.dmPelsWidth <= 0 or devmode.dmPelsHeight <= 0 or devmode.dmDisplayFrequency <= 0:
+                continue
+            key = (int(devmode.dmPelsWidth), int(devmode.dmPelsHeight), int(devmode.dmDisplayFrequency))
+            modes_by_key[key] = DisplayMode(*key)
+
+        modes = sorted(
+            modes_by_key.values(),
+            key=lambda item: (item.width * item.height, item.width, item.height, item.refresh_rate),
+            reverse=True,
+        )
+        display_name = monitor_name or adapter.DeviceString or adapter.DeviceName
+        displays.append(DisplayInfo(name=display_name, device_name=adapter.DeviceName, modes=modes))
+
+    return displays
+
+
 PRESETS: dict[str, dict[str, str]] = {
     "Low FPS": {
         "ResolutionMultiplier:0.0": "70",
@@ -768,6 +891,7 @@ class QtConfiguratorWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.repo_dir = app_data_dir()
+        self.displays = discover_windows_displays()
         self.documents: list[ConfigDocument] = []
         self.controls: dict[tuple[str, int], object] = {}
         self.current_section = "Graphics"
@@ -799,15 +923,6 @@ class QtConfiguratorWindow(QMainWindow):
         title.setObjectName("headerTitle")
         header_layout.addWidget(title)
         header_layout.addStretch(1)
-        for label, handler in (
-            ("Profiles", self.reload_profiles),
-            ("Settings", lambda: self.select_section("Graphics")),
-            ("Help", self.show_help),
-        ):
-            button = QPushButton(label)
-            button.setFixedWidth(86)
-            button.clicked.connect(handler)
-            header_layout.addWidget(button)
         layout.addWidget(header)
 
         top = QFrame()
@@ -903,14 +1018,15 @@ class QtConfiguratorWindow(QMainWindow):
         footer.setObjectName("footer")
         footer_layout = QHBoxLayout(footer)
         footer_layout.setContentsMargins(8, 5, 8, 5)
-        for label, handler in (
-            ("Reload Settings", self.reload_profiles),
-            ("Save Settings", self.save_all),
-            ("Unlock Files", self.unlock_files),
-        ):
-            button = QPushButton(label)
-            button.clicked.connect(handler)
-            footer_layout.addWidget(button)
+        reload_settings = QPushButton("Reload Settings")
+        reload_settings.clicked.connect(self.reload_profiles)
+        footer_layout.addWidget(reload_settings)
+        save_settings = QPushButton("Save Settings")
+        save_settings.clicked.connect(self.save_all)
+        footer_layout.addWidget(save_settings)
+        self.lock_toggle_button = QPushButton("Unlock Files")
+        self.lock_toggle_button.clicked.connect(self.toggle_file_lock)
+        footer_layout.addWidget(self.lock_toggle_button)
         self.status_label = QLabel("Select the game folder.")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         footer_layout.addWidget(self.status_label, 1)
@@ -1006,6 +1122,27 @@ class QtConfiguratorWindow(QMainWindow):
             QPushButton:hover {
                 background: #303946;
             }
+            QPushButton[lockState="locked"] {
+                background: #8a1f2d;
+                border-color: #c8102e;
+                color: #ffffff;
+            }
+            QPushButton[lockState="locked"]:hover {
+                background: #a82737;
+            }
+            QPushButton[lockState="unlocked"] {
+                background: #1f6f4a;
+                border-color: #2fbf77;
+                color: #ffffff;
+            }
+            QPushButton[lockState="unlocked"]:hover {
+                background: #26895b;
+            }
+            QPushButton[lockState="disabled"] {
+                background: #1f252c;
+                border-color: #343c46;
+                color: #808a94;
+            }
             QCheckBox {
                 color: #e8edf2;
             }
@@ -1033,6 +1170,28 @@ class QtConfiguratorWindow(QMainWindow):
 
     def set_status(self, text: str) -> None:
         self.status_label.setText(text)
+
+    def files_are_locked(self) -> bool:
+        return bool(self.documents) and all(is_readonly(doc.path) for doc in self.documents)
+
+    def update_lock_button(self) -> None:
+        if not hasattr(self, "lock_toggle_button"):
+            return
+        if not self.documents:
+            self.lock_toggle_button.setText("Unlock Files")
+            self.lock_toggle_button.setEnabled(False)
+            self.lock_toggle_button.setProperty("lockState", "disabled")
+        elif self.files_are_locked():
+            self.lock_toggle_button.setText("Unlock Files")
+            self.lock_toggle_button.setEnabled(True)
+            self.lock_toggle_button.setProperty("lockState", "locked")
+        else:
+            self.lock_toggle_button.setText("Lock Files")
+            self.lock_toggle_button.setEnabled(True)
+            self.lock_toggle_button.setProperty("lockState", "unlocked")
+        self.lock_toggle_button.style().unpolish(self.lock_toggle_button)
+        self.lock_toggle_button.style().polish(self.lock_toggle_button)
+        self.lock_toggle_button.update()
 
     def choose_game_dir(self) -> None:
         selected = QFileDialog.getExistingDirectory(self, "Select the Call of Duty MWII folder", self.folder_edit.text())
@@ -1064,6 +1223,7 @@ class QtConfiguratorWindow(QMainWindow):
             self.documents = []
             self.render_options(capture=False)
             self.set_status("No valid profile found under players\\<profile-id>.")
+            self.update_lock_button()
 
     def load_documents(self) -> None:
         profile = self.profile_combo.currentText()
@@ -1077,9 +1237,11 @@ class QtConfiguratorWindow(QMainWindow):
             total = sum(len(doc.entries) for doc in self.documents)
             self.set_status(f"{total} options loaded. {readonly}")
             self.render_options(capture=False)
+            self.update_lock_button()
         except Exception as exc:
             self.documents = []
             self.render_options(capture=False)
+            self.update_lock_button()
             QMessageBox.critical(self, APP_TITLE, str(exc))
 
     def all_entries(self) -> list[ConfigEntry]:
@@ -1090,6 +1252,75 @@ class QtConfiguratorWindow(QMainWindow):
             if entry.token == token:
                 return entry
         return None
+
+    def entry_by_key(self, key: str) -> ConfigEntry | None:
+        for entry in self.all_entries():
+            if entry.key == key:
+                return entry
+        return None
+
+    def current_monitor_value(self) -> str:
+        widget = self.controls.get(("Options", self.entry_by_key("Monitor").line_index)) if self.entry_by_key("Monitor") else None
+        if isinstance(widget, QComboBox):
+            data = widget.currentData()
+            return str(data) if data is not None else widget.currentText()
+        entry = self.entry_by_key("Monitor")
+        return entry.value if entry else ""
+
+    def selected_display(self) -> DisplayInfo | None:
+        if not self.displays:
+            return None
+        current = self.current_monitor_value()
+        for display in self.displays:
+            if current in {display.name, display.device_name, self.display_label_for_monitor(display)}:
+                return display
+        return self.displays[0]
+
+    @staticmethod
+    def display_label_for_monitor(display: DisplayInfo) -> str:
+        return f"{display.name} ({display.device_name})" if display.device_name else display.name
+
+    def resolution_choices(self) -> list[str]:
+        display = self.selected_display()
+        if not display:
+            return []
+        choices = []
+        for mode in display.modes:
+            if mode.resolution not in choices:
+                choices.append(mode.resolution)
+        current = self.entry_by_key("Resolution")
+        if current and current.value and current.value not in choices:
+            choices.insert(0, current.value)
+        return choices
+
+    def refresh_choices(self) -> list[tuple[str, str]]:
+        display = self.selected_display()
+        resolution = self.entry_by_key("Resolution")
+        selected_resolution = resolution.value if resolution else ""
+        widget = self.controls.get(("Options", resolution.line_index)) if resolution else None
+        if isinstance(widget, QComboBox):
+            selected_resolution = widget.currentText()
+        if not display or not selected_resolution:
+            return []
+        rates = sorted(
+            {mode.refresh_rate for mode in display.modes if mode.resolution == selected_resolution},
+            reverse=True,
+        )
+        choices = [(f"{rate} Hz", str(rate)) for rate in rates]
+        current = self.entry_by_key("RefreshRate")
+        if current and current.value:
+            current_int = str(int(round(float(current.value)))) if self.is_number(current.value) else current.value
+            if current.value not in {value for _, value in choices} and current_int not in {value for _, value in choices}:
+                choices.insert(0, (f"{current.value} Hz (current config)", current.value))
+        return choices
+
+    @staticmethod
+    def is_number(value: str) -> bool:
+        try:
+            float(value)
+        except ValueError:
+            return False
+        return True
 
     def gpu_name(self) -> str:
         entry = self.entry_by_token("GPUName:0.0")
@@ -1264,7 +1495,34 @@ class QtConfiguratorWindow(QMainWindow):
 
     def create_value_widget(self, doc: ConfigDocument, entry: ConfigEntry) -> QWidget:
         key = (doc.label, entry.line_index)
-        if entry.kind == "bool":
+        if entry.key == "Monitor" and self.displays:
+            widget = QComboBox()
+            for display in self.displays:
+                widget.addItem(self.display_label_for_monitor(display), display.name)
+            current_index = 0
+            for index, display in enumerate(self.displays):
+                if entry.value in {display.name, display.device_name, self.display_label_for_monitor(display)}:
+                    current_index = index
+                    break
+            widget.setCurrentIndex(current_index)
+            widget.currentTextChanged.connect(lambda _value, item=entry, combo=widget: self.on_monitor_changed(item, combo))
+        elif entry.key == "Resolution" and self.resolution_choices():
+            widget = QComboBox()
+            widget.addItems(self.resolution_choices())
+            if entry.value:
+                widget.setCurrentText(entry.value)
+            widget.currentTextChanged.connect(lambda value, item=entry: self.on_resolution_changed(item, value))
+        elif entry.key == "RefreshRate" and self.refresh_choices():
+            widget = QComboBox()
+            for label, value in self.refresh_choices():
+                widget.addItem(label, value)
+            current_value = entry.value
+            for index in range(widget.count()):
+                data = str(widget.itemData(index))
+                if data == current_value or (self.is_number(data) and self.is_number(current_value) and int(float(data)) == int(round(float(current_value)))):
+                    widget.setCurrentIndex(index)
+                    break
+        elif entry.kind == "bool":
             widget = QCheckBox()
             widget.setChecked(entry.value == "true")
         elif entry.kind == "choice":
@@ -1329,7 +1587,9 @@ class QtConfiguratorWindow(QMainWindow):
                 if entry.key == "AATechniquePreferred":
                     self.set_unified_aa_selection(widget.currentText())
                     continue
-                value = choice_value_for_label(entry, widget.currentText())
+                data = widget.currentData()
+                raw_value = str(data) if data is not None else widget.currentText()
+                value = choice_value_for_label(entry, raw_value)
             elif isinstance(widget, QDoubleSpinBox):
                 value = self.format_number(entry, widget.value())
             elif isinstance(widget, SliderEditor):
@@ -1352,6 +1612,27 @@ class QtConfiguratorWindow(QMainWindow):
     def on_aa_changed(self, entry: ConfigEntry, value: str) -> None:
         self.set_unified_aa_selection(value)
         self.enforce_hardware_constraints()
+        self.render_options(capture=False)
+
+    def on_monitor_changed(self, entry: ConfigEntry, widget: QComboBox) -> None:
+        data = widget.currentData()
+        entry.value = str(data) if data is not None else widget.currentText()
+        resolution = self.entry_by_key("Resolution")
+        choices = self.resolution_choices()
+        if resolution and choices and resolution.value not in choices:
+            resolution.value = choices[0]
+        refresh = self.entry_by_key("RefreshRate")
+        refresh_choices = self.refresh_choices()
+        if refresh and refresh_choices and refresh.value not in {value for _, value in refresh_choices}:
+            refresh.value = refresh_choices[0][1]
+        self.render_options(capture=False)
+
+    def on_resolution_changed(self, entry: ConfigEntry, value: str) -> None:
+        entry.value = value
+        refresh = self.entry_by_key("RefreshRate")
+        refresh_choices = self.refresh_choices()
+        if refresh and refresh_choices:
+            refresh.value = refresh_choices[0][1]
         self.render_options(capture=False)
 
     def apply_preset_to_ui(self) -> None:
@@ -1396,12 +1677,21 @@ class QtConfiguratorWindow(QMainWindow):
         except Exception as exc:
             QMessageBox.critical(self, APP_TITLE, str(exc))
 
-    def unlock_files(self) -> None:
+    def toggle_file_lock(self) -> None:
+        if not self.documents:
+            QMessageBox.warning(self, APP_TITLE, "Load a valid game folder before changing file locks.")
+            return
         try:
-            for doc in self.documents:
-                make_writable(doc.path)
+            if self.files_are_locked():
+                for doc in self.documents:
+                    make_writable(doc.path)
+                message = "Read-only removed from the loaded files."
+            else:
+                for doc in self.documents:
+                    make_readonly(doc.path)
+                message = "Loaded files marked as read-only."
             self.load_documents()
-            QMessageBox.information(self, APP_TITLE, "Read-only removed from the loaded files.")
+            QMessageBox.information(self, APP_TITLE, message)
         except Exception as exc:
             QMessageBox.critical(self, APP_TITLE, str(exc))
 

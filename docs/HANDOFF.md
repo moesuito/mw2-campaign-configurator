@@ -7,7 +7,7 @@ This file is for future coding agents working on this repo.
 - Repo: `D:\Antigravity\mw2-campaign-configurator`
 - GitHub: `https://github.com/moesuito/mw2-campaign-configurator`
 - Main branch: `main`
-- Current planned release: `v0.2.1`
+- Current planned release: `v0.2.2`
 - App framework: PyQt6
 - Packaging: PyInstaller one-file portable executable
 
@@ -30,6 +30,10 @@ This file is for future coding agents working on this repo.
 - The UI re-renders cached `ConfigEntry` objects from RAM for category changes, search, mode changes, and AA/upscaler changes.
 - `QTreeWidget` is used for the central settings view. Mouse-wheel scrolling should work natively.
 - `SliderEditor` is used for practical ranged values and preserves numeric formatting on save.
+- `discover_windows_displays()` uses Win32 display APIs to populate monitor, resolution, and refresh-rate dropdowns.
+- The bottom-bar lock toggle uses the current read-only state of the loaded files:
+  - `Unlock Files` when all loaded files are read-only.
+  - `Lock Files` when any loaded file is writable.
 - `NORMAL_MODE_KEYS` controls what appears in Normal mode.
 - `NORMAL_LABELS` controls nicer Normal-mode labels.
 - `entry_subcategory()` controls tree grouping.
@@ -89,3 +93,9 @@ $env:QT_QPA_PLATFORM='offscreen'
 - Kept FSR/CAS/XeSS available across GPU vendors while gating only DLSS/DLAA to RTX GPUs.
 - Hid the Source column in Normal mode.
 - Added cleaner in-game style labels in Normal mode while keeping Advanced mode more file-faithful.
+
+## Release Notes Draft for v0.2.2
+
+- Added Windows display discovery for monitor, resolution, and refresh-rate dropdowns.
+- Removed unused top-bar buttons to simplify the main window.
+- Replaced the fixed `Unlock Files` action with a read-only aware `Lock Files` / `Unlock Files` toggle.
