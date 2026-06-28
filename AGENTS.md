@@ -76,13 +76,13 @@ Build portable executable:
 2. Run validation and build.
 3. Commit to `main` with a concise release-oriented message when preparing a release.
 4. Push `main`.
-5. Create a GitHub release and attach `dist\MW2CampaignConfigurator.exe`.
+5. Create a GitHub release and attach `dist\MW2CampaignConfigurator.exe` and `dist\MW2CampaignConfiguratorSetup.exe`.
 6. Include release notes and the validation commands used.
 
 Example:
 
 ```powershell
-gh release create vX.Y.Z .\dist\MW2CampaignConfigurator.exe --title "vX.Y.Z" --notes "Release notes here."
+gh release create vX.Y.Z .\dist\MW2CampaignConfigurator.exe .\dist\MW2CampaignConfiguratorSetup.exe --title "vX.Y.Z" --notes "Release notes here."
 ```
 
 ## v0.3.0 Baseline

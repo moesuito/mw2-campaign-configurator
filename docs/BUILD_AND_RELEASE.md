@@ -19,6 +19,7 @@ Output:
 
 ```text
 dist\MW2CampaignConfigurator.exe
+dist\MW2CampaignConfiguratorSetup.exe
 ```
 
 ## Tests
@@ -44,11 +45,12 @@ The offscreen smoke test may print a Qt font warning in this local environment. 
 4. Generate the SHA256 checksum for the release executable:
    ```powershell
    Get-FileHash .\dist\MW2CampaignConfigurator.exe -Algorithm SHA256
+   Get-FileHash .\dist\MW2CampaignConfiguratorSetup.exe -Algorithm SHA256
    ```
 5. Commit and push.
-6. Create a GitHub release, pasting the SHA256 hash in the release description:
+6. Create a GitHub release, pasting the SHA256 hashes in the release description:
    ```powershell
-   gh release create vX.Y.Z .\dist\MW2CampaignConfigurator.exe --title "vX.Y.Z" --notes "Release notes here with SHA256."
+   gh release create vX.Y.Z .\dist\MW2CampaignConfigurator.exe .\dist\MW2CampaignConfiguratorSetup.exe --title "vX.Y.Z" --notes "Release notes here with SHA256."
    ```
 
 ## Version Notes
