@@ -55,3 +55,4 @@ gh release create vX.Y.Z .\dist\MW2CampaignConfigurator.exe --title "vX.Y.Z" --n
 - `v0.2.0`: PyQt6 dark-mode UI, native mouse-wheel scrolling, tree subcategories, Normal/Advanced modes, sliders.
 - `v0.2.1`: unified FSR/CAS/XeSS/DLSS upscaler selector, cleaner Normal-mode labels, and hidden Source column in Normal mode.
 - `v0.2.2`: Windows display mode dropdowns, simplified header, and read-only aware file lock toggle.
+- `v0.2.3`: startup home screen, direct lock/unlock actions, and save success toast with locked-file error handling.

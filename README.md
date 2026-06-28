@@ -10,6 +10,7 @@ The campaign settings screen can fail to save changes in some current game build
 
 - Native PyQt6 Windows GUI inspired by classic Battlefield settings editors.
 - Full dark mode interface.
+- Home screen on startup with no settings category selected by default.
 - Left sidebar with the original game categories: Accessibility, Audio, Display, Gameplay, Graphics, Interface, Mouse and Gamepad, System, and Touch.
 - Normal and Advanced modes:
   - `Normal` focuses on the main in-game menu style options.
@@ -31,10 +32,11 @@ The campaign settings screen can fail to save changes in some current game build
 - Uses one unified upscaler selector for SMAA, DLSS, DLAA, XeSS, FSR 2.0, CAS, and AMD FSR 1.0.
 - Hides only DLSS and DLAA on non-RTX GPUs based on the detected `GPUName` value. FSR and XeSS remain available across GPU vendors.
 - Creates timestamped backups before saving.
-- Saves and reapplies read-only attributes to the edited files.
+- Saves only when the loaded files are writable, leaving lock control to the user.
 - Includes a bottom-bar file lock toggle:
   - `Unlock Files` appears when the loaded files are read-only.
   - `Lock Files` appears when the loaded files are writable.
+- Requires files to be unlocked before saving, then shows a short success notification instead of a modal dialog.
 - Portable `.exe`, no installer required.
 
 ## Edited Files
@@ -60,11 +62,13 @@ Put it anywhere you like and run it. Backups are created next to the executable 
 2. Run `MW2CampaignConfigurator.exe`.
 3. Confirm the detected `Call of Duty MWII` folder, or choose it manually.
 4. Select the profile if more than one is detected.
-5. Choose a category from the sidebar.
-6. Use `Normal` mode for the common settings, or `Advanced` to expose every supported readable field.
-7. Edit values manually or load a preset.
-8. Click `Save Settings`.
-9. Start the campaign.
+5. Click `Unlock Files` if the loaded files are read-only.
+6. Choose a category from the sidebar.
+7. Use `Normal` mode for the common settings, or `Advanced` to expose every supported readable field.
+8. Edit values manually or load a preset.
+9. Click `Save Settings`.
+10. Click `Lock Files` if you want to protect the edited files from game-side overwrites.
+11. Start the campaign.
 
 Use the bottom-bar lock toggle if you want to temporarily unlock the loaded files or lock them again after manual edits.
 
@@ -121,7 +125,7 @@ py -m pytest .\tests
 ## Safety Notes
 
 - The app creates backups before writing any config files.
-- The app temporarily removes read-only before saving, then reapplies read-only.
+- `Save Settings` requires the loaded files to be writable. Use `Unlock Files` before saving.
 - Keep the game closed while saving settings.
 - If something looks wrong, use `Restore Backup` in the app or copy files back manually from the `backups\` folder.
 

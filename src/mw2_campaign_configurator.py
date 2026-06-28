@@ -10,7 +10,7 @@ import sys
 from dataclasses import dataclass
 from ctypes import wintypes
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
     QApplication,
@@ -894,7 +894,7 @@ class QtConfiguratorWindow(QMainWindow):
         self.displays = discover_windows_displays()
         self.documents: list[ConfigDocument] = []
         self.controls: dict[tuple[str, int], object] = {}
-        self.current_section = "Graphics"
+        self.current_section = ""
         self.game_dir = default_game_dir()
 
         self.setWindowTitle(APP_TITLE)
@@ -965,12 +965,32 @@ class QtConfiguratorWindow(QMainWindow):
         self.section_title = QLabel("Settings")
         self.section_title.setObjectName("sectionTitle")
         main_layout.addWidget(self.section_title)
-        line = QFrame()
-        line.setFrameShape(QFrame.Shape.HLine)
-        line.setObjectName("sectionRule")
-        main_layout.addWidget(line)
+        self.section_rule = QFrame()
+        self.section_rule.setFrameShape(QFrame.Shape.HLine)
+        self.section_rule.setObjectName("sectionRule")
+        main_layout.addWidget(self.section_rule)
 
-        tools = QHBoxLayout()
+        self.home_panel = QWidget()
+        self.home_panel.setObjectName("homePanel")
+        home_layout = QVBoxLayout(self.home_panel)
+        home_layout.setContentsMargins(0, 0, 0, 0)
+        home_layout.setSpacing(8)
+        home_layout.addStretch(1)
+        home_title = QLabel("MW2 Campaign Configurator")
+        home_title.setObjectName("homeTitle")
+        home_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        home_layout.addWidget(home_title)
+        home_copy = QLabel("Edit campaign-effective Modern Warfare II settings files, manage presets, and control file locking from one portable tool.")
+        home_copy.setObjectName("homeCopy")
+        home_copy.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        home_copy.setWordWrap(True)
+        home_layout.addWidget(home_copy)
+        home_layout.addStretch(1)
+        main_layout.addWidget(self.home_panel, 1)
+
+        self.tools_panel = QWidget()
+        tools = QHBoxLayout(self.tools_panel)
+        tools.setContentsMargins(0, 0, 0, 0)
         tools.addWidget(QLabel("Mode"))
         self.mode_combo = QComboBox()
         self.mode_combo.addItems(["Normal", "Advanced"])
@@ -999,7 +1019,7 @@ class QtConfiguratorWindow(QMainWindow):
         self.section_meta = QLabel("")
         self.section_meta.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         tools.addWidget(self.section_meta)
-        main_layout.addLayout(tools)
+        main_layout.addWidget(self.tools_panel)
 
         self.tree = QTreeWidget()
         self.tree.setObjectName("optionsTree")
@@ -1012,6 +1032,8 @@ class QtConfiguratorWindow(QMainWindow):
         self.tree.setColumnWidth(0, 430)
         self.tree.setColumnWidth(1, 300)
         main_layout.addWidget(self.tree, 1)
+        self.tools_panel.hide()
+        self.tree.hide()
         body.addWidget(main, 1)
 
         footer = QFrame()
@@ -1037,6 +1059,10 @@ class QtConfiguratorWindow(QMainWindow):
         restore.clicked.connect(self.restore_latest_backup)
         footer_layout.addWidget(restore)
         layout.addWidget(footer)
+
+        self.toast_label = QLabel(root)
+        self.toast_label.setObjectName("toast")
+        self.toast_label.hide()
 
         self.setStyleSheet(
             """
@@ -1096,6 +1122,24 @@ class QtConfiguratorWindow(QMainWindow):
                 font-size: 20px;
                 font-weight: 700;
                 color: #f2f5f7;
+            }
+            QLabel#homeTitle {
+                font-size: 30px;
+                font-weight: 700;
+                color: #ffffff;
+            }
+            QLabel#homeCopy {
+                color: #b8c2cc;
+                font-size: 14px;
+                max-width: 620px;
+            }
+            QLabel#toast {
+                background: #203528;
+                color: #ffffff;
+                border: 1px solid #2fbf77;
+                border-radius: 6px;
+                padding: 10px 14px;
+                font-weight: 700;
             }
             QFrame#sectionRule {
                 color: #343c46;
@@ -1171,8 +1215,48 @@ class QtConfiguratorWindow(QMainWindow):
     def set_status(self, text: str) -> None:
         self.status_label.setText(text)
 
-    def files_are_locked(self) -> bool:
-        return bool(self.documents) and all(is_readonly(doc.path) for doc in self.documents)
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self.position_toast()
+
+    def position_toast(self) -> None:
+        if not hasattr(self, "toast_label"):
+            return
+        parent = self.centralWidget()
+        if not parent:
+            return
+        self.toast_label.adjustSize()
+        margin = 18
+        x = max(margin, parent.width() - self.toast_label.width() - margin)
+        y = max(margin, parent.height() - self.toast_label.height() - 54)
+        self.toast_label.move(x, y)
+
+    def show_toast(self, message: str) -> None:
+        self.toast_label.setText(message)
+        self.position_toast()
+        self.toast_label.show()
+        self.toast_label.raise_()
+        QTimer.singleShot(2000, self.toast_label.hide)
+
+    def show_home_screen(self) -> None:
+        self.controls.clear()
+        self.tree.clear()
+        self.section_meta.setText("")
+        self.section_title.hide()
+        self.section_rule.hide()
+        self.home_panel.show()
+        self.tools_panel.hide()
+        self.tree.hide()
+
+    def show_options_screen(self) -> None:
+        self.section_title.show()
+        self.section_rule.show()
+        self.home_panel.hide()
+        self.tools_panel.show()
+        self.tree.show()
+
+    def files_have_readonly(self) -> bool:
+        return bool(self.documents) and any(is_readonly(doc.path) for doc in self.documents)
 
     def update_lock_button(self) -> None:
         if not hasattr(self, "lock_toggle_button"):
@@ -1181,7 +1265,7 @@ class QtConfiguratorWindow(QMainWindow):
             self.lock_toggle_button.setText("Unlock Files")
             self.lock_toggle_button.setEnabled(False)
             self.lock_toggle_button.setProperty("lockState", "disabled")
-        elif self.files_are_locked():
+        elif self.files_have_readonly():
             self.lock_toggle_button.setText("Unlock Files")
             self.lock_toggle_button.setEnabled(True)
             self.lock_toggle_button.setProperty("lockState", "locked")
@@ -1438,6 +1522,9 @@ class QtConfiguratorWindow(QMainWindow):
         matches = self.sidebar.findItems(self.current_section, Qt.MatchFlag.MatchExactly)
         if matches:
             self.sidebar.setCurrentItem(matches[0])
+        else:
+            self.sidebar.clearSelection()
+            self.sidebar.setCurrentRow(-1)
         self.sidebar.blockSignals(blocked)
 
     def render_options(self, capture: bool = True) -> None:
@@ -1454,17 +1541,25 @@ class QtConfiguratorWindow(QMainWindow):
             QTreeWidgetItem(self.tree, ["No options loaded.", "", ""])
             self.section_title.setText("Settings")
             self.section_meta.setText("")
+            self.show_options_screen()
             return
 
         sections = sorted(grouped)
-        if self.current_section not in grouped:
-            self.current_section = "Graphics" if "Graphics" in grouped else sections[0]
         self.render_sidebar(sections)
+        if not self.current_section:
+            self.show_home_screen()
+            return
+        if self.current_section not in grouped:
+            self.current_section = ""
+            self.render_sidebar(sections)
+            self.show_home_screen()
+            return
 
         entries = grouped[self.current_section]
         self.section_title.setText(self.current_section)
         mode_note = self.mode_combo.currentText()
         self.section_meta.setText(f"{len(entries)} options · {mode_note}")
+        self.show_options_screen()
 
         by_subcategory: dict[str, list[tuple[ConfigDocument, ConfigEntry]]] = {}
         for doc, entry in entries:
@@ -1661,37 +1756,36 @@ class QtConfiguratorWindow(QMainWindow):
         if not self.documents:
             QMessageBox.warning(self, APP_TITLE, "Load a valid game folder before saving.")
             return
+        if self.files_have_readonly():
+            QMessageBox.critical(self, APP_TITLE, "Files are locked. Click Unlock Files before saving.")
+            return
         try:
             self.capture_visible_controls(validate=True)
             backup_dir = backup_documents(self.documents, self.repo_dir)
             for doc in self.documents:
-                make_writable(doc.path)
                 for entry in doc.entries:
                     if not entry.accepts(entry.value):
                         raise ValueError(f"Invalid value for {entry.token}: {entry.value}")
                     doc.set_value(entry, entry.value)
                 doc.save()
-                make_readonly(doc.path)
             self.load_documents()
-            QMessageBox.information(self, APP_TITLE, f"Settings saved.\nBackup: {backup_dir}")
+            self.set_status(f"Settings saved. Backup: {backup_dir}")
+            self.show_toast("Settings saved")
         except Exception as exc:
             QMessageBox.critical(self, APP_TITLE, str(exc))
 
     def toggle_file_lock(self) -> None:
         if not self.documents:
-            QMessageBox.warning(self, APP_TITLE, "Load a valid game folder before changing file locks.")
+            self.set_status("Load a valid game folder before changing file locks.")
             return
         try:
-            if self.files_are_locked():
+            if self.files_have_readonly():
                 for doc in self.documents:
                     make_writable(doc.path)
-                message = "Read-only removed from the loaded files."
             else:
                 for doc in self.documents:
                     make_readonly(doc.path)
-                message = "Loaded files marked as read-only."
             self.load_documents()
-            QMessageBox.information(self, APP_TITLE, message)
         except Exception as exc:
             QMessageBox.critical(self, APP_TITLE, str(exc))
 
@@ -1715,7 +1809,7 @@ class QtConfiguratorWindow(QMainWindow):
             APP_TITLE,
             "Use the sidebar to browse categories.\n"
             "Mouse wheel scrolling is supported in the options panel.\n"
-            "Save Settings creates a backup and marks the files as read-only.",
+            "Unlock files before saving. Save Settings creates a backup and keeps the current file lock state.",
         )
 
     def show_about(self) -> None:

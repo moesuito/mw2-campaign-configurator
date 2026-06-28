@@ -7,7 +7,7 @@ This file is for future coding agents working on this repo.
 - Repo: `D:\Antigravity\mw2-campaign-configurator`
 - GitHub: `https://github.com/moesuito/mw2-campaign-configurator`
 - Main branch: `main`
-- Current planned release: `v0.2.2`
+- Current planned release: `v0.2.3`
 - App framework: PyQt6
 - Packaging: PyInstaller one-file portable executable
 
@@ -26,14 +26,17 @@ This file is for future coding agents working on this repo.
 
 ## Important Implementation Details
 
-- Files are read only on initial load, profile change, explicit reload, save, or restore.
+- Files are loaded on startup, profile change, explicit reload, save, or restore.
 - The UI re-renders cached `ConfigEntry` objects from RAM for category changes, search, mode changes, and AA/upscaler changes.
+- The app opens on a simple home screen. `current_section == ""` means no category is selected.
 - `QTreeWidget` is used for the central settings view. Mouse-wheel scrolling should work natively.
 - `SliderEditor` is used for practical ranged values and preserves numeric formatting on save.
 - `discover_windows_displays()` uses Win32 display APIs to populate monitor, resolution, and refresh-rate dropdowns.
 - The bottom-bar lock toggle uses the current read-only state of the loaded files:
-  - `Unlock Files` when all loaded files are read-only.
-  - `Lock Files` when any loaded file is writable.
+  - `Unlock Files` when any loaded file is read-only.
+  - `Lock Files` when every loaded file is writable.
+- Lock/unlock does not show modal confirmation dialogs.
+- `Save Settings` does not force chmod. It shows an error if any loaded file is read-only, saves only when all loaded files are writable, and uses a two-second toast for success.
 - `NORMAL_MODE_KEYS` controls what appears in Normal mode.
 - `NORMAL_LABELS` controls nicer Normal-mode labels.
 - `entry_subcategory()` controls tree grouping.
@@ -99,3 +102,9 @@ $env:QT_QPA_PLATFORM='offscreen'
 - Added Windows display discovery for monitor, resolution, and refresh-rate dropdowns.
 - Removed unused top-bar buttons to simplify the main window.
 - Replaced the fixed `Unlock Files` action with a read-only aware `Lock Files` / `Unlock Files` toggle.
+
+## Release Notes Draft for v0.2.3
+
+- Added a startup home screen with no settings category selected by default.
+- Removed lock/unlock confirmation popups.
+- Changed saving to require unlocked files and show a short success toast instead of a modal dialog.
