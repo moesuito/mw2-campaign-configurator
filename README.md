@@ -106,6 +106,12 @@ Run tests:
 py -m pytest .\tests
 ```
 
+## Documentation
+
+- [Architecture](docs/ARCHITECTURE.md)
+- [Build and release](docs/BUILD_AND_RELEASE.md)
+- [Agent handoff](docs/HANDOFF.md)
+
 ## Safety Notes
 
 - The app creates backups before writing any config files.
