@@ -40,7 +40,7 @@ The campaign settings screen can fail to save changes in some current game build
 - Disables saving while files are locked, then shows a short success notification instead of a modal dialog.
 - Tracks unsaved changes and warns before reload, folder changes, or profile changes would discard edits.
 - Includes `Reset Selected` to restore one setting to the last loaded or saved value.
-- Portable `.exe`, no installer required.
+- Available as a portable `.exe` (no installer required) or via a setup installer.
 
 ## Edited Files
 
@@ -51,13 +51,12 @@ The app edits only these readable files:
 
 It does not edit multiplayer, battle royale, DMZ, co-op, binary `.csb`, or hashed `.cfg` files.
 
-## Download
+## Download and Installation
 
-Download the latest portable executable from the GitHub Releases page:
+Download the latest release from the GitHub Releases page. Each release contains two versions:
 
-- `MW2CampaignConfigurator.exe`
-
-Put it anywhere you like and run it. Backups are created under a `backups\` folder next to the executable (for a portable build) or at the repo root (for a source run).
+- **Portable (`MW2CampaignConfigurator.exe`)**: No installation required. Put the executable anywhere you like and run it. Backups are created in a `backups\` folder next to the executable.
+- **Installer (`MW2CampaignConfiguratorSetup.exe`)**: A non-admin installer that installs the app into `%APPDATA%\MW2CampaignConfigurator` and provides options to create Desktop and Start Menu shortcuts.
 
 ## Usage
 
@@ -102,10 +101,11 @@ cd mw2-campaign-configurator
 .\scripts\build.ps1
 ```
 
-The portable executable will be created at:
+The build outputs will be created at:
 
 ```text
-dist\MW2CampaignConfigurator.exe
+dist\MW2CampaignConfigurator.exe      (Portable executable)
+dist\MW2CampaignConfiguratorSetup.exe (NSIS Installer, if NSIS is installed)
 ```
 
 Run from source:

@@ -7,9 +7,9 @@ This file is for future coding agents working on this repo.
 - Repo: `D:\Antigravity\mw2-campaign-configurator`
 - GitHub: `https://github.com/moesuito/mw2-campaign-configurator`
 - Main branch: `main`
-- Current release target: `v0.3.0`
+- Current release target: `v0.3.1`
 - App framework: PyQt6
-- Packaging: PyInstaller one-file portable executable
+- Packaging: PyInstaller one-file portable executable & NSIS installer
 
 ## User Preferences
 
@@ -22,7 +22,7 @@ This file is for future coding agents working on this repo.
 - `Normal` mode should use polished labels and hide technical source paths.
 - `Advanced` mode should expose extra config fields from the readable files.
 - Do not edit MP/BR/DMZ/CP files.
-- Keep the executable portable for now.
+- Ship both a portable executable and an NSIS-based setup installer.
 
 ## Important Implementation Details
 
@@ -69,6 +69,7 @@ All post-v0.3.0 visual and UX polish tasks have been successfully completed:
 - **Icon, Favicon, and Windows Taskbar Icon**: Configured `SetCurrentProcessExplicitAppUserModelID` on Windows and set the application-wide icon before window creation. Generated `assets/favicon.ico`. Packaged the assets directory in PyInstaller using `--add-data` and resolved resource loading at runtime via `sys._MEIPASS`.
 - **Startup Home Screen Centering**: Structured the startup home screen content layout using a constrained-width inner container (`560px` wide) centered horizontally and vertically using layout stretches.
 - **Friendly Display Labels for Graphics Dropdown Values**: Added `FRIENDLY_CHOICE_LABELS` mapping raw quality constants to friendly user display labels for options like `TextureFilter` and `GTAOQuality`. Items are populated using friendly names while retaining raw option values in `itemData` for saving. Included unit tests in `tests/test_config_parser.py`.
+- **NSIS Setup Installer**: Created `scripts/installer.nsi` to compile a non-admin installer target that copies the app to `$APPDATA\MW2CampaignConfigurator` and creates optional shortcuts on the Desktop and Start Menu. Integrated NSIS compilation into `scripts/build.ps1`.
 
 ## v0.3.0 Implementation Notes
 
@@ -81,7 +82,7 @@ Implementation guardrails for this release:
 - Preserve the current behavior where config files are loaded into `ConfigDocument` / `ConfigEntry` objects and UI navigation re-renders from RAM.
 - Keep all user-facing text in English.
 - Do not add network calls or telemetry.
-- Do not add an installer.
+- Build both portable executable and NSIS installer for releases.
 - Update `README.md`, `docs/ARCHITECTURE.md`, `docs/BUILD_AND_RELEASE.md`, and this file if behavior changes.
 
 ### Task: Improve Empty States and Onboarding
