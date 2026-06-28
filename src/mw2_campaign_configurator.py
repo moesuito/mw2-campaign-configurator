@@ -361,6 +361,60 @@ def choice_value_for_label(entry: ConfigEntry, value: str) -> str:
     return value
 
 
+FRIENDLY_CHOICE_LABELS = {
+    "TextureFilter": {
+        "TEXTURE_FILTER_NEAREST": "Nearest",
+        "TEXTURE_FILTER_LINEAR": "Linear",
+        "TEXTURE_FILTER_ANISO2X": "Anisotropic 2x",
+        "TEXTURE_FILTER_ANISO4X": "Anisotropic 4x",
+        "TEXTURE_FILTER_ANISO8X": "Anisotropic 8x",
+        "TEXTURE_FILTER_ANISO16X": "Anisotropic 16x",
+        "TEXTURE_FILTER_CMP": "Comparison",
+    },
+    "GTAOQuality": {
+        "R_GTAO_QUALITY_LOW": "Low",
+        "R_GTAO_QUALITY_MEDIUM": "Medium",
+        "R_GTAO_QUALITY_HIGH": "High",
+        "R_GTAO_QUALITY_ULTRA": "Ultra",
+    },
+    "SMAAQuality": {
+        "SMAA_QUALITY_LOW": "Low",
+        "SMAA_QUALITY_MEDIUM": "Medium",
+        "SMAA_QUALITY_HIGH": "High",
+        "SMAA_QUALITY_ULTRA": "Ultra",
+    },
+    "VolumetricQuality": {
+        "QUALITY_LOW": "Low",
+        "QUALITY_MEDIUM": "Medium",
+        "QUALITY_HIGH": "High",
+    },
+    "Tessellation": {
+        "0_Off": "Off",
+        "1_Near": "Near",
+        "2_All": "All",
+    },
+}
+
+
+def friendly_choice_label(entry: ConfigEntry, raw_or_label: str) -> str:
+    val = choice_label_for_value(entry, raw_or_label)
+    mapping = FRIENDLY_CHOICE_LABELS.get(entry.key)
+    if mapping and val in mapping:
+        return mapping[val]
+    return val
+
+
+def raw_choice_value_from_friendly_label(entry: ConfigEntry, label: str) -> str:
+    mapping = FRIENDLY_CHOICE_LABELS.get(entry.key)
+    if mapping:
+        for raw_val, friendly_val in mapping.items():
+            if friendly_val == label:
+                return choice_value_for_label(entry, raw_val)
+        if label in mapping:
+            return choice_value_for_label(entry, label)
+    return choice_value_for_label(entry, label)
+
+
 def display_value_for_entry(entry: ConfigEntry) -> str:
     if entry.choices:
         return choice_label_for_value(entry, entry.value)
@@ -811,6 +865,14 @@ def app_data_dir() -> pathlib.Path:
     return pathlib.Path(__file__).resolve().parents[1]
 
 
+def resource_path(relative_path: str) -> pathlib.Path:
+    if getattr(sys, "frozen", False):
+        base_path = pathlib.Path(getattr(sys, "_MEIPASS", sys.executable))
+    else:
+        base_path = pathlib.Path(__file__).resolve().parents[1]
+    return base_path / relative_path
+
+
 def backup_documents(documents: list[ConfigDocument], repo_dir: pathlib.Path) -> pathlib.Path:
     stamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
     backup_dir = repo_dir / "backups" / stamp
@@ -903,7 +965,7 @@ class QtConfiguratorWindow(QMainWindow):
 
         self.setWindowTitle(APP_TITLE)
         self.resize(1180, 760)
-        icon_path = self.repo_dir / "assets" / "app.ico"
+        icon_path = resource_path("assets/app.ico")
         if icon_path.exists():
             self.setWindowIcon(QIcon(str(icon_path)))
 
@@ -978,18 +1040,37 @@ class QtConfiguratorWindow(QMainWindow):
         self.home_panel.setObjectName("homePanel")
         home_layout = QVBoxLayout(self.home_panel)
         home_layout.setContentsMargins(0, 0, 0, 0)
-        home_layout.setSpacing(8)
-        home_layout.addStretch(1)
+        home_layout.setSpacing(0)
+
+        # Inner container for constrained width & clean centering
+        inner_container = QWidget()
+        inner_container.setFixedWidth(560)
+        inner_layout = QVBoxLayout(inner_container)
+        inner_layout.setContentsMargins(0, 0, 0, 0)
+        inner_layout.setSpacing(12)
+
         self.home_title = QLabel("MW2 Campaign Configurator")
         self.home_title.setObjectName("homeTitle")
         self.home_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        home_layout.addWidget(self.home_title)
+        inner_layout.addWidget(self.home_title)
+
         self.home_copy = QLabel("Edit campaign-effective Modern Warfare II settings files, manage presets, and control file locking from one portable tool.")
         self.home_copy.setObjectName("homeCopy")
         self.home_copy.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.home_copy.setWordWrap(True)
-        home_layout.addWidget(self.home_copy)
+        inner_layout.addWidget(self.home_copy)
+
+        # Center the inner container horizontally
+        hbox = QHBoxLayout()
+        hbox.addStretch(1)
+        hbox.addWidget(inner_container)
+        hbox.addStretch(1)
+
+        # Center vertically and account for the top bar/footer visually
         home_layout.addStretch(1)
+        home_layout.addLayout(hbox)
+        home_layout.addStretch(1)
+
         main_layout.addWidget(self.home_panel, 1)
 
         self.tools_panel = QWidget()
@@ -1795,14 +1876,22 @@ class QtConfiguratorWindow(QMainWindow):
         elif entry.kind == "choice":
             widget = QComboBox()
             choices = self.unified_aa_choices() if entry.key == "AATechniquePreferred" else filtered_aa_choices(entry, self.has_rtx_gpu())
-            widget.addItems(choices)
-            current = self.current_aa_label() if entry.key == "AATechniquePreferred" else display_value_for_entry(entry)
-            if entry.key == "AATechniquePreferred" and current not in choices and choices:
-                current = choices[0]
-                self.set_unified_aa_selection(current)
-            widget.setCurrentText(current)
             if entry.key == "AATechniquePreferred":
+                widget.addItems(choices)
+                current = self.current_aa_label()
+                if current not in choices and choices:
+                    current = choices[0]
+                    self.set_unified_aa_selection(current)
+                widget.setCurrentText(current)
                 widget.currentTextChanged.connect(lambda value, item=entry: self.on_aa_changed(item, value))
+            else:
+                for choice in choices:
+                    friendly_lbl = friendly_choice_label(entry, choice)
+                    raw_val = choice_value_for_label(entry, choice)
+                    widget.addItem(friendly_lbl, raw_val)
+                current_raw = display_value_for_entry(entry)
+                current_friendly = friendly_choice_label(entry, current_raw)
+                widget.setCurrentText(current_friendly)
             widget.currentIndexChanged.connect(lambda _: self.on_value_edited())
         elif entry.kind == "range":
             if should_use_slider(entry):
@@ -1859,8 +1948,10 @@ class QtConfiguratorWindow(QMainWindow):
                     self.set_unified_aa_selection(widget.currentText())
                     continue
                 data = widget.currentData()
-                raw_value = str(data) if data is not None else widget.currentText()
-                value = choice_value_for_label(entry, raw_value)
+                if data is not None:
+                    value = str(data)
+                else:
+                    value = raw_choice_value_from_friendly_label(entry, widget.currentText())
             elif isinstance(widget, QDoubleSpinBox):
                 value = self.format_number(entry, widget.value())
             elif isinstance(widget, SliderEditor):
@@ -2068,8 +2159,7 @@ def main() -> None:
 
     app = QApplication(sys.argv)
 
-    repo_dir = app_data_dir()
-    icon_path = repo_dir / "assets" / "app.ico"
+    icon_path = resource_path("assets/app.ico")
     if icon_path.exists():
         app.setWindowIcon(QIcon(str(icon_path)))
 

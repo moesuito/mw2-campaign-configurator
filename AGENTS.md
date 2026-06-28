@@ -105,5 +105,4 @@ The next visual polish pass is documented in [`docs/HANDOFF.md`](docs/HANDOFF.md
 
 Do not treat these as regressions in the current release:
 
-- The startup home screen needs more precise centering.
-- Graphics dropdown values need friendly in-game style display labels while preserving raw config values on disk.
+- (All v0.3.0 polish tasks completed)

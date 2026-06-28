@@ -13,6 +13,8 @@ from mw2_campaign_configurator import (
     is_normal_mode_entry,
     is_rtx_gpu_name,
     should_use_slider,
+    friendly_choice_label,
+    raw_choice_value_from_friendly_label,
 )
 
 
@@ -253,3 +255,35 @@ def test_reload_does_not_capture_stale_visible_controls(tmp_path, monkeypatch):
     assert not w.has_unsaved_changes()
 
     w.close()
+
+
+def test_friendly_choice_labels(tmp_path):
+    path = tmp_path / "options.3.cod22.cst"
+    path.write_text(
+        '// Graphics\n'
+        'TextureFilter:0.0 = "TEXTURE_FILTER_ANISO16X" // one of [TEXTURE_FILTER_NEAREST, TEXTURE_FILTER_LINEAR, TEXTURE_FILTER_ANISO2X, TEXTURE_FILTER_ANISO4X, TEXTURE_FILTER_ANISO8X, TEXTURE_FILTER_ANISO16X, TEXTURE_FILTER_CMP]\n'
+        'GTAOQuality:0.0 = "R_GTAO_QUALITY_HIGH" // one of [R_GTAO_QUALITY_LOW, R_GTAO_QUALITY_MEDIUM, R_GTAO_QUALITY_HIGH, R_GTAO_QUALITY_ULTRA]\n'
+        'AATechniquePreferred:0.1 = "2" // one of [SMAA T2x, Filmic SMAA T2x, DLSS, DLAA, XeSS, FSR2]\n',
+        encoding="utf-8",
+    )
+
+    doc = ConfigDocument.load(path, "Options")
+    tex_filter, gtao_quality, aa_pref = doc.entries
+
+    # TextureFilter friendly label tests
+    assert friendly_choice_label(tex_filter, "TEXTURE_FILTER_ANISO16X") == "Anisotropic 16x"
+    assert friendly_choice_label(tex_filter, "TEXTURE_FILTER_NEAREST") == "Nearest"
+    assert raw_choice_value_from_friendly_label(tex_filter, "Anisotropic 16x") == "TEXTURE_FILTER_ANISO16X"
+    assert raw_choice_value_from_friendly_label(tex_filter, "Nearest") == "TEXTURE_FILTER_NEAREST"
+
+    # GTAOQuality friendly label tests
+    assert friendly_choice_label(gtao_quality, "R_GTAO_QUALITY_HIGH") == "High"
+    assert friendly_choice_label(gtao_quality, "R_GTAO_QUALITY_LOW") == "Low"
+    assert raw_choice_value_from_friendly_label(gtao_quality, "High") == "R_GTAO_QUALITY_HIGH"
+    assert raw_choice_value_from_friendly_label(gtao_quality, "Low") == "R_GTAO_QUALITY_LOW"
+
+    # Index-backed choice AATechniquePreferred:0.1 tests (ensure existing index behavior is not broken)
+    assert friendly_choice_label(aa_pref, "2") == "DLSS"
+    assert friendly_choice_label(aa_pref, "DLSS") == "DLSS"
+    assert raw_choice_value_from_friendly_label(aa_pref, "DLSS") == "2"
+    assert raw_choice_value_from_friendly_label(aa_pref, "FSR2") == "5"

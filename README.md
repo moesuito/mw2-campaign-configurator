@@ -134,10 +134,6 @@ py -m pytest .\tests
 - Keep the game closed while saving settings.
 - If something looks wrong, use `Restore Backup`, click `Open Backups`, or copy files back manually from the `backups\` folder.
 
-## Known Issues
-
-- The startup home screen content is not perfectly centered in the available content area on all window sizes.
-- Some graphics dropdown values still show raw config tokens, such as `TEXTURE_FILTER_ANISO16X` or `R_GTAO_QUALITY_HIGH`, instead of polished in-game style labels.
 
 ## Assets
 
