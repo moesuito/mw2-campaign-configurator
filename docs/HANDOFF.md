@@ -50,6 +50,161 @@ This file is for future coding agents working on this repo.
 - `unified_aa_choices()` presents SMAA, DLSS, DLAA, XeSS, FSR 2.0, CAS, and AMD FSR 1.0 in one selector.
 - `is_rtx_gpu_name()` currently checks for both `NVIDIA` and `RTX` in `GPUName:0.0`; only DLSS and DLAA are RTX-gated.
 
+## Known Issues
+
+- The custom icon is embedded in the `.exe`, but Windows taskbar icon behavior is not fully polished yet. The repo also does not have a favicon-style app icon asset.
+- The startup home screen is functional, but the centered content is visually a bit low/right in the current window layout.
+- Some graphics option dropdowns still expose raw config values to users, for example:
+  - `TEXTURE_FILTER_ANISO16X`
+  - `TEXTURE_FILTER_NEAREST`
+  - `R_GTAO_QUALITY_HIGH`
+  - `R_GTAO_QUALITY_MEDIUM`
+
+These are intentionally left as open UX polish tasks after `v0.3.0`.
+
+## Open Tasks After v0.3.0
+
+The next implementation pass should be handled as visual/UX polish. Do not change parser semantics, save behavior, file targets, or upscaler gating unless the task explicitly requires it.
+
+### Task: Fix Icon, Favicon, and Windows Taskbar Icon
+
+Problem:
+
+- `assets/app.ico` is embedded into the PyInstaller executable, but the icon does not consistently appear in the Windows taskbar.
+- There is no favicon-style app icon asset for repository/docs/future site usage.
+
+Relevant current code:
+
+- `_build_ui()` sets `self.setWindowIcon(QIcon(str(icon_path)))`.
+- `scripts/build.ps1` regenerates `assets/app.ico` and passes it to PyInstaller.
+- `assets/app.png` and `assets/app.ico` already exist.
+
+Suggested implementation:
+
+1. Verify that the app icon is set before window creation/show and that `QApplication` also gets the icon:
+   - create `QIcon(str(icon_path))`
+   - call `app.setWindowIcon(icon)` in `main()`
+   - keep `self.setWindowIcon(icon)` in the window
+2. If Windows still groups the taskbar under a generic icon, set an explicit AppUserModelID on Windows before creating `QApplication`:
+   - use `ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(...)`
+   - suggested ID: `moesuito.mw2campaignconfigurator`
+3. Ensure `assets/app.ico` includes multiple sizes such as 16, 32, 48, 64, 128, and 256.
+4. Add a favicon-style asset, preferably `assets/favicon.ico`, generated from the same source image.
+5. Update `scripts/create_icon.py` and/or `scripts/build.ps1` if needed.
+6. Do not introduce a new branding direction. Keep it COD/settings themed and consistent with the current icon.
+
+Acceptance checks:
+
+- Portable `.exe` still contains the icon.
+- Running the app shows the custom icon in the window title bar.
+- Running the app shows the custom icon in the Windows taskbar.
+- `assets/favicon.ico` exists and is documented if added.
+
+### Task: Center the Startup Home Screen Correctly
+
+Problem:
+
+- The home screen copy is visible, but the content does not feel optically centered in the main content area because the top bar, left sidebar, footer, and central panel dimensions influence layout.
+
+Relevant current code:
+
+- `_build_ui()` creates `self.home_panel`, `self.home_title`, and `self.home_copy`.
+- `show_home_screen()` hides the section title/rule/tools/tree and shows `self.home_panel`.
+- The home panel is inside the main content layout next to the sidebar.
+
+Suggested implementation:
+
+1. Keep the home as the first screen; do not auto-select a category.
+2. Center relative to the available main panel, not the entire app window.
+3. Prefer layout-based fixes over absolute positioning:
+   - use `QVBoxLayout` with balanced stretch above/below
+   - use a constrained inner container for text width
+   - consider `Qt.AlignmentFlag.AlignCenter` on the home panel's parent layout item
+4. Account for the top bar and footer visually. The text should sit at the perceived center of the blank main area.
+5. Test at common sizes:
+   - default `1180x760`
+   - narrower desktop width
+   - maximized desktop window
+6. Ensure empty-state messages from `set_home_message()` also remain centered and readable.
+
+Acceptance checks:
+
+- Neutral startup home content is visually centered in the main content area.
+- Missing folder/profile home messages are also centered and readable.
+- No overlap with top bar, footer, sidebar, or toast notification.
+
+### Task: Add Friendly Display Labels for Graphics Dropdown Values
+
+Problem:
+
+- Some graphics dropdowns show raw config tokens instead of user-friendly game menu labels.
+- Examples observed:
+  - `TEXTURE_FILTER_ANISO16X` should display like `Anisotropic 16x`
+  - `TEXTURE_FILTER_ANISO8X` should display like `Anisotropic 8x`
+  - `TEXTURE_FILTER_NEAREST` should display like `Nearest`
+  - `TEXTURE_FILTER_LINEAR` should display like `Linear`
+  - `R_GTAO_QUALITY_HIGH` should display like `High`
+  - `R_GTAO_QUALITY_MEDIUM` should display like `Medium`
+
+Relevant current code:
+
+- `display_value_for_entry(entry)` converts stored values to visible labels for choice widgets.
+- `choice_label_for_value(entry, value)` and `choice_value_for_label(entry, label)` preserve index-backed choices.
+- `create_value_widget()` uses `display_value_for_entry()` for normal choice widgets.
+- `capture_visible_controls()` uses `choice_value_for_label(entry, raw_value)` before saving.
+- `NORMAL_LABELS` only improves option names, not dropdown choice values.
+
+Suggested implementation:
+
+1. Add a mapping for friendly choice labels without changing stored values. Suggested shape:
+
+   ```python
+   FRIENDLY_CHOICE_LABELS = {
+       "TextureFilter": {
+           "TEXTURE_FILTER_NEAREST": "Nearest",
+           "TEXTURE_FILTER_LINEAR": "Linear",
+           "TEXTURE_FILTER_ANISO2X": "Anisotropic 2x",
+           "TEXTURE_FILTER_ANISO4X": "Anisotropic 4x",
+           "TEXTURE_FILTER_ANISO8X": "Anisotropic 8x",
+           "TEXTURE_FILTER_ANISO16X": "Anisotropic 16x",
+           "TEXTURE_FILTER_CMP": "Comparison",
+       },
+       "SSAOTechnique": {
+           "R_GTAO_QUALITY_LOW": "Low",
+           "R_GTAO_QUALITY_MEDIUM": "Medium",
+           "R_GTAO_QUALITY_HIGH": "High",
+           "R_GTAO_QUALITY_ULTRA": "Ultra",
+       },
+   }
+   ```
+
+2. Add helpers:
+   - `friendly_choice_label(entry, raw_or_label: str) -> str`
+   - `raw_choice_value_from_friendly_label(entry, label: str) -> str`
+3. Populate `QComboBox` items with friendly labels but store the raw config value in item data:
+   - `widget.addItem(friendly_label, raw_value)`
+4. In `capture_visible_controls()`, prefer `widget.currentData()` when present. This is already partially supported; verify it works for all choice widgets.
+5. Keep Advanced mode option names purist, but friendly dropdown values are allowed in both Normal and Advanced because users should not have to read raw engine constants.
+6. Audit all Graphics choices for raw tokens:
+   - texture filtering
+   - ambient occlusion / GTAO
+   - screen-space effects
+   - shadow cache/quality tokens
+   - volumetric/weather quality tokens
+   - particle quality tokens
+7. Do not change values written to disk. Only the displayed text should change.
+8. Add parser/helper tests for at least:
+   - `TextureFilter:0.0`
+   - `SSAOTechnique:0.0`
+   - an index-backed choice such as `AATechniquePreferred:0.1` to ensure existing index behavior is not broken.
+
+Acceptance checks:
+
+- Texture filtering dropdown shows friendly labels and still saves raw values like `TEXTURE_FILTER_ANISO16X`.
+- Ambient occlusion dropdown shows `Low`, `Medium`, `High`, `Ultra` and still saves raw values like `R_GTAO_QUALITY_HIGH`.
+- Existing upscaler labels and index-backed choices still work.
+- No raw all-caps graphics constants are visible in Normal mode for common graphics options.
+
 ## v0.3.0 Implementation Notes
 
 The v0.3.0 update focuses on first-run UX, safer save affordances, and user confidence around backups/changes. Keep the app portable, English-only, and scoped to campaign-effective files.
