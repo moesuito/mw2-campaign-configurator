@@ -7,7 +7,7 @@ This file is for future coding agents working on this repo.
 - Repo: `D:\Antigravity\mw2-campaign-configurator`
 - GitHub: `https://github.com/moesuito/mw2-campaign-configurator`
 - Main branch: `main`
-- Current planned release: `v0.2.3`
+- Current release target: `v0.3.0`
 - App framework: PyQt6
 - Packaging: PyInstaller one-file portable executable
 
@@ -37,6 +37,11 @@ This file is for future coding agents working on this repo.
   - `Lock Files` when every loaded file is writable.
 - Lock/unlock does not show modal confirmation dialogs.
 - `Save Settings` does not force chmod. It shows an error if any loaded file is read-only, saves only when all loaded files are writable, and uses a two-second toast for success.
+- Empty or invalid game/profile states are shown in the home panel with direct guidance.
+- `Save Settings` is disabled while files are read-only.
+- Unsaved changes are tracked against the last loaded/saved baseline and prompt before reload/profile/folder changes.
+- `Reset Selected` restores one selected option to the last loaded/saved value.
+- `Open Backups` opens the portable backup folder.
 - `NORMAL_MODE_KEYS` controls what appears in Normal mode.
 - `NORMAL_LABELS` controls nicer Normal-mode labels.
 - `entry_subcategory()` controls tree grouping.
@@ -45,9 +50,9 @@ This file is for future coding agents working on this repo.
 - `unified_aa_choices()` presents SMAA, DLSS, DLAA, XeSS, FSR 2.0, CAS, and AMD FSR 1.0 in one selector.
 - `is_rtx_gpu_name()` currently checks for both `NVIDIA` and `RTX` in `GPUName:0.0`; only DLSS and DLAA are RTX-gated.
 
-## Planned v0.3.0 Work
+## v0.3.0 Implementation Notes
 
-The next update should focus on first-run UX, safer save affordances, and user confidence around backups/changes. Keep the app portable, English-only, and scoped to campaign-effective files.
+The v0.3.0 update focuses on first-run UX, safer save affordances, and user confidence around backups/changes. Keep the app portable, English-only, and scoped to campaign-effective files.
 
 Implementation guardrails for this release:
 
@@ -311,7 +316,7 @@ Acceptance checks:
 - Reset works for bool, choice, range/slider, and text values.
 - Save after reset writes the expected value.
 
-### Suggested v0.3.0 Release Notes Draft
+### v0.3.0 Release Notes
 
 - Added clearer first-run and missing-profile guidance on the home screen.
 - Improved save availability based on file lock state.

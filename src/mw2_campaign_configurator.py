@@ -1313,10 +1313,11 @@ class QtConfiguratorWindow(QMainWindow):
         self.update_save_button()
 
     def has_unsaved_changes(self) -> bool:
-        return bool(self.changed_entries())
+        return bool(self.changed_entries(capture=True))
 
-    def changed_entries(self) -> dict[tuple[str, int], tuple[ConfigDocument, ConfigEntry]]:
-        self.capture_visible_controls(validate=False)
+    def changed_entries(self, capture: bool = True) -> dict[tuple[str, int], tuple[ConfigDocument, ConfigEntry]]:
+        if capture:
+            self.capture_visible_controls(validate=False)
         changed = {}
         for doc in self.documents:
             for entry in doc.entries:
@@ -1332,11 +1333,11 @@ class QtConfiguratorWindow(QMainWindow):
             for entry in doc.entries:
                 self.loaded_values[(doc.label, entry.line_index)] = entry.value
 
-    def update_dirty_indicator(self) -> None:
+    def update_dirty_indicator(self, capture: bool = True) -> None:
         if not self.documents:
             self.dirty_label.setText("")
             return
-        changed = self.changed_entries()
+        changed = self.changed_entries(capture=capture)
         if changed:
             count = len(changed)
             self.dirty_label.setText(f"Unsaved changes ({count})")
@@ -1416,7 +1417,7 @@ class QtConfiguratorWindow(QMainWindow):
         else:
             self.documents = []
             self.loaded_values.clear()
-            self.update_dirty_indicator()
+            self.update_dirty_indicator(capture=False)
             self.render_options(capture=False)
             
             players_dir = self.game_dir / "players"
@@ -1449,7 +1450,7 @@ class QtConfiguratorWindow(QMainWindow):
             self.enforce_hardware_constraints()
             
             self.snapshot_loaded_values()
-            self.update_dirty_indicator()
+            self.update_dirty_indicator(capture=False)
             self.set_home_message(
                 "MW2 Campaign Configurator",
                 "Edit campaign-effective Modern Warfare II settings files, manage presets, and control file locking from one portable tool."
@@ -1463,7 +1464,7 @@ class QtConfiguratorWindow(QMainWindow):
         except FileNotFoundError as exc:
             self.documents = []
             self.loaded_values.clear()
-            self.update_dirty_indicator()
+            self.update_dirty_indicator(capture=False)
             self.set_home_message(
                 "Required Configuration Files Missing",
                 f"{str(exc)}\n\n"
@@ -1476,7 +1477,7 @@ class QtConfiguratorWindow(QMainWindow):
         except Exception as exc:
             self.documents = []
             self.loaded_values.clear()
-            self.update_dirty_indicator()
+            self.update_dirty_indicator(capture=False)
             self.set_home_message(
                 "Error Loading Documents",
                 f"An unexpected error occurred while loading files:\n{str(exc)}"
@@ -1700,7 +1701,10 @@ class QtConfiguratorWindow(QMainWindow):
                 QTreeWidgetItem(self.tree, ["No options loaded.", "", ""])
                 self.section_title.setText("Settings")
                 self.section_meta.setText("")
-                self.show_options_screen()
+                if self.documents:
+                    self.show_options_screen()
+                else:
+                    self.show_home_screen()
                 return
 
             sections = sorted(grouped)
@@ -1744,6 +1748,7 @@ class QtConfiguratorWindow(QMainWindow):
                 self.tree.setColumnWidth(1, 300)
         finally:
             self.is_rendering = False
+            self.update_reset_button_state()
 
     def display_label(self, entry: ConfigEntry) -> str:
         if self.mode_combo.currentText() == "Normal":

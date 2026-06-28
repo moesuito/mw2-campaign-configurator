@@ -10,7 +10,7 @@ The campaign settings screen can fail to save changes in some current game build
 
 - Native PyQt6 Windows GUI inspired by classic Battlefield settings editors.
 - Full dark mode interface.
-- Home screen on startup with no settings category selected by default.
+- Home screen on startup with no settings category selected by default, including clearer guidance when the game folder or campaign profile is missing.
 - Left sidebar with the original game categories: Accessibility, Audio, Display, Gameplay, Graphics, Interface, Mouse and Gamepad, System, and Touch.
 - Normal and Advanced modes:
   - `Normal` focuses on the main in-game menu style options.
@@ -32,11 +32,14 @@ The campaign settings screen can fail to save changes in some current game build
 - Uses one unified upscaler selector for SMAA, DLSS, DLAA, XeSS, FSR 2.0, CAS, and AMD FSR 1.0.
 - Hides only DLSS and DLAA on non-RTX GPUs based on the detected `GPUName` value. FSR and XeSS remain available across GPU vendors.
 - Creates timestamped backups before saving.
+- Includes `Open Backups` to open the backup folder directly in Explorer.
 - Saves only when the loaded files are writable, leaving lock control to the user.
 - Includes a bottom-bar file lock toggle:
   - `Unlock Files` appears when the loaded files are read-only.
   - `Lock Files` appears when the loaded files are writable.
-- Requires files to be unlocked before saving, then shows a short success notification instead of a modal dialog.
+- Disables saving while files are locked, then shows a short success notification instead of a modal dialog.
+- Tracks unsaved changes and warns before reload, folder changes, or profile changes would discard edits.
+- Includes `Reset Selected` to restore one setting to the last loaded or saved value.
 - Portable `.exe`, no installer required.
 
 ## Edited Files
@@ -66,9 +69,10 @@ Put it anywhere you like and run it. Backups are created under a `backups\` fold
 6. Choose a category from the sidebar.
 7. Use `Normal` mode for the common settings, or `Advanced` to expose every supported readable field.
 8. Edit values manually or load a preset.
-9. Click `Save Settings`.
-10. Click `Lock Files` if you want to protect the edited files from game-side overwrites.
-11. Start the campaign.
+9. Use `Reset Selected` if you want to revert one highlighted option before saving.
+10. Click `Save Settings`.
+11. Click `Lock Files` if you want to protect the edited files from game-side overwrites.
+12. Start the campaign.
 
 Use the bottom-bar lock toggle if you want to temporarily unlock the loaded files or lock them again after manual edits.
 
@@ -126,8 +130,9 @@ py -m pytest .\tests
 
 - The app creates backups before writing any config files.
 - `Save Settings` requires the loaded files to be writable. Use `Unlock Files` before saving.
+- Unsaved-change prompts appear before actions that would discard in-memory edits.
 - Keep the game closed while saving settings.
-- If something looks wrong, use `Restore Backup` in the app or copy files back manually from the `backups\` folder.
+- If something looks wrong, use `Restore Backup`, click `Open Backups`, or copy files back manually from the `backups\` folder.
 
 ## License
 

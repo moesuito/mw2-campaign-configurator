@@ -34,6 +34,10 @@ Use this file as the first project handoff document. For deeper implementation d
 - `Save Settings` requires writable files. It shows an error if any loaded file is read-only.
 - `Lock Files` / `Unlock Files` changes file attributes directly without confirmation popups.
 - Successful save shows a short toast notification.
+- Empty or invalid game/profile states are explained in the home panel instead of relying only on the bottom status bar.
+- The footer tracks unsaved changes and warns before destructive reload/profile/folder changes.
+- `Reset Selected` restores one option to the last loaded or saved value.
+- `Open Backups` opens the portable backup directory in Explorer.
 
 ## Development Rules
 
@@ -81,11 +85,11 @@ Example:
 gh release create vX.Y.Z .\dist\MW2CampaignConfigurator.exe --title "vX.Y.Z" --notes "Release notes here."
 ```
 
-## Planned v0.3.0 Work
+## v0.3.0 Baseline
 
-The next planned update is documented in detail in [`docs/HANDOFF.md`](docs/HANDOFF.md), under `Planned v0.3.0 Work`. Read that section before editing code; it includes relevant current functions, suggested implementation steps, risks, and acceptance checks.
+The v0.3.0 UX/reliability work is implemented. The detailed task plan remains in [`docs/HANDOFF.md`](docs/HANDOFF.md) as historical context and review guidance.
 
-The intended scope is:
+Implemented scope:
 
 - Better first-run and missing-profile home-screen guidance.
 - Save button state that reflects read-only lock state.
@@ -93,4 +97,4 @@ The intended scope is:
 - Backup folder access and release checksum documentation.
 - Reset action for individual settings.
 
-These items should be implemented as a focused UX/reliability release, then reviewed before publishing.
+Future agents should preserve this behavior unless a new task explicitly changes it.

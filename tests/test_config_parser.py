@@ -186,3 +186,70 @@ def test_unsaved_changes_tracking_offscreen(tmp_path, monkeypatch):
     assert not w.has_unsaved_changes()
 
     w.close()
+
+
+def test_missing_profile_keeps_home_screen_visible(tmp_path, monkeypatch):
+    game_dir = tmp_path / "Call of Duty MWII"
+    game_dir.mkdir()
+    monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+
+    from PyQt6.QtWidgets import QApplication
+    from mw2_campaign_configurator import QtConfiguratorWindow
+
+    app = QApplication.instance() or QApplication([])
+
+    w = QtConfiguratorWindow()
+    w.folder_edit.setText(str(game_dir))
+    w.reload_profiles(auto=False)
+
+    assert not w.documents
+    assert not w.home_panel.isHidden()
+    assert w.tree.isHidden()
+    assert w.home_title.text() == "MWII Players Folder Not Found"
+    assert not w.lock_toggle_button.isEnabled()
+    assert not w.save_button.isEnabled()
+
+    w.close()
+
+
+def test_reload_does_not_capture_stale_visible_controls(tmp_path, monkeypatch):
+    game_dir = tmp_path / "Call of Duty MWII"
+    players_dir = game_dir / "players"
+    profile_dir = players_dir / "123456"
+    profile_dir.mkdir(parents=True)
+
+    options_path = players_dir / "options.3.cod22.cst"
+    settings_path = profile_dir / "settings.3.local.cod22.cst"
+
+    options_path.write_text(
+        '// Display\nDisplayMode:0.0 = "Windowed" // one of [Windowed, Fullscreen]\n',
+        encoding="utf-8",
+    )
+    settings_path.write_text(
+        '// Gameplay\nADSFovScaling:0.0 = "false"\n',
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+
+    from PyQt6.QtWidgets import QApplication, QComboBox
+    from mw2_campaign_configurator import QtConfiguratorWindow
+
+    app = QApplication.instance() or QApplication([])
+
+    w = QtConfiguratorWindow()
+    w.folder_edit.setText(str(game_dir))
+    w.reload_profiles(auto=False)
+    w.current_section = "Display"
+    w.render_options(capture=False)
+
+    combo = next(widget for widget in w.controls.values() if isinstance(widget, QComboBox))
+    combo.setCurrentText("Fullscreen")
+    assert w.has_unsaved_changes()
+
+    w.reload_profiles(auto=True)
+
+    assert w.entry_by_key("DisplayMode").value == "Windowed"
+    assert not w.has_unsaved_changes()
+
+    w.close()
