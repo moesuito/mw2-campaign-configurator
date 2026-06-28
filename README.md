@@ -19,6 +19,8 @@ The campaign settings screen can fail to save changes in some current game build
   - numeric inputs for ranged values
   - text inputs for free-form values
 - Includes quick presets: Low FPS, Balanced, High, Ultra, and Competitive.
+- Shows only the relevant upscaler settings for the selected anti-aliasing technique.
+- Hides DLSS and DLAA on non-RTX GPUs based on the detected `GPUName` value.
 - Creates timestamped backups before saving.
 - Saves and reapplies read-only attributes to the edited files.
 - Portable `.exe`, no installer required.

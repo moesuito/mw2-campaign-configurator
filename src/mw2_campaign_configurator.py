@@ -34,6 +34,29 @@ VALUE_RE = re.compile(r'^([^:]+):([\d.]+)\s*=\s*"([^"]*)"(?:\s*//\s*(.*))?$')
 REPLACE_RE = re.compile(r'^([^=]+=\s*")([^"]*)(".*)$')
 RANGE_RE = re.compile(r"(-?\d+(?:\.\d+)?)\s+to\s+(-?\d+(?:\.\d+)?)")
 CHOICE_RE = re.compile(r"one of \[(.*)\]")
+RTX_ONLY_AA_CHOICES = {"DLSS", "DLAA"}
+UPSCALER_CONFIG_KEYS = {
+    "AMDContrastAdaptiveSharpeningStrength",
+    "AMDSuperResolution",
+    "AMDSuperResolutionQuality",
+    "AMDSuperResolution2Quality",
+    "DefaultSMAATechnique",
+    "DLSSPerfMode",
+    "DLSSSharpness",
+    "NVIDIAImageScaling",
+    "NVIDIAImageScalingQuality",
+    "NVIDIAImageScalingSharpness",
+    "SMAAQuality",
+    "XeSSQuality",
+}
+UPSCALER_VISIBLE_KEYS = {
+    "DLSS": {"DLSSPerfMode", "DLSSSharpness"},
+    "DLAA": {"DLSSSharpness"},
+    "XeSS": {"XeSSQuality"},
+    "FSR2": {"AMDSuperResolution2Quality"},
+    "SMAA T2x": {"DefaultSMAATechnique", "SMAAQuality"},
+    "Filmic SMAA T2x": {"DefaultSMAATechnique", "SMAAQuality"},
+}
 
 
 @dataclass
@@ -46,6 +69,7 @@ class ConfigEntry:
     version: str
     value: str
     meta: str
+    stores_choice_index: bool = False
 
     @property
     def token(self) -> str:
@@ -83,7 +107,7 @@ class ConfigEntry:
         if self.kind == "bool":
             return value in {"true", "false"}
         if self.choices:
-            return value in self.choices
+            return value in self.choices or choice_label_for_value(self, value) in self.choices
         bounds = self.range_bounds
         if bounds:
             try:
@@ -92,6 +116,50 @@ class ConfigEntry:
                 return False
             return bounds[0] <= number <= bounds[1]
         return True
+
+
+def choice_label_for_value(entry: ConfigEntry, value: str) -> str:
+    if value in entry.choices:
+        return value
+    if entry.choices and value.isdigit():
+        index = int(value)
+        if 0 <= index < len(entry.choices):
+            return entry.choices[index]
+    return value
+
+
+def choice_value_for_label(entry: ConfigEntry, value: str) -> str:
+    if not entry.stores_choice_index:
+        return value
+    if value.isdigit() and 0 <= int(value) < len(entry.choices):
+        return value
+    if value in entry.choices:
+        return str(entry.choices.index(value))
+    return value
+
+
+def display_value_for_entry(entry: ConfigEntry) -> str:
+    if entry.choices:
+        return choice_label_for_value(entry, entry.value)
+    return entry.value
+
+
+def is_rtx_gpu_name(gpu_name: str) -> bool:
+    normalized = gpu_name.upper()
+    return "NVIDIA" in normalized and "RTX" in normalized
+
+
+def filtered_aa_choices(entry: ConfigEntry, has_rtx: bool) -> list[str]:
+    choices = entry.choices
+    if entry.key != "AATechniquePreferred" or has_rtx:
+        return choices
+    return [choice for choice in choices if choice not in RTX_ONLY_AA_CHOICES]
+
+
+def is_entry_visible_for_aa(entry: ConfigEntry, selected_aa: str) -> bool:
+    if entry.key not in UPSCALER_CONFIG_KEYS:
+        return True
+    return entry.key in UPSCALER_VISIBLE_KEYS.get(selected_aa, set())
 
 
 class ConfigDocument:
@@ -135,6 +203,7 @@ class ConfigDocument:
                     version=version,
                     value=value,
                     meta=meta or "",
+                    stores_choice_index=bool(meta and "one of [" in meta and value.isdigit()),
                 )
             )
             pending_description = ""
@@ -356,7 +425,7 @@ class ScrollFrame(ttk.Frame):
         super().__init__(master)
         self.canvas = tk.Canvas(self, highlightthickness=0, bg="white")
         self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
-        self.inner = ttk.Frame(self.canvas)
+        self.inner = ttk.Frame(self.canvas, style="Main.TFrame")
         self.inner.bind("<Configure>", lambda _: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
         self.window_id = self.canvas.create_window((0, 0), window=self.inner, anchor="nw")
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
@@ -523,6 +592,7 @@ class ConfiguratorApp(tk.Tk):
             profile = self.profile_var.get()
             validate_game_dir(game_dir, profile)
             self.documents = [ConfigDocument.load(path, label) for path, label in target_paths(game_dir, profile)]
+            self.enforce_hardware_constraints()
             readonly = ", ".join(f"{doc.label}: {'RO' if is_readonly(doc.path) else 'RW'}" for doc in self.documents)
             total = sum(len(doc.entries) for doc in self.documents)
             self.status_var.set(f"{total} options loaded. {readonly}")
@@ -543,6 +613,8 @@ class ConfiguratorApp(tk.Tk):
             for entry in doc.entries:
                 haystack = " ".join([entry.key, entry.description, entry.section, doc.label]).lower()
                 if needle and needle not in haystack:
+                    continue
+                if not is_entry_visible_for_aa(entry, self.current_aa_label()):
                     continue
                 grouped.setdefault(entry.section, []).append((doc, entry))
         return grouped
@@ -628,8 +700,15 @@ class ConfiguratorApp(tk.Tk):
             var = tk.BooleanVar(value=entry.value == "true")
             widget = ttk.Checkbutton(parent, variable=var)
         elif entry.kind == "choice":
-            var = tk.StringVar(value=entry.value)
-            widget = ttk.Combobox(parent, textvariable=var, values=entry.choices, state="readonly", width=28)
+            choices = filtered_aa_choices(entry, self.has_rtx_gpu())
+            current = display_value_for_entry(entry)
+            if entry.key == "AATechniquePreferred" and current not in choices and choices:
+                current = choices[0]
+                entry.value = choice_value_for_label(entry, current)
+            var = tk.StringVar(value=current)
+            widget = ttk.Combobox(parent, textvariable=var, values=choices, state="readonly", width=28)
+            if entry.key == "AATechniquePreferred":
+                widget.bind("<<ComboboxSelected>>", lambda _event, item=entry, variable=var: self.on_aa_changed(item, variable))
         elif entry.kind == "range":
             var = tk.StringVar(value=entry.value)
             bounds = entry.range_bounds or (0, 1)
@@ -660,9 +739,50 @@ class ConfiguratorApp(tk.Tk):
                 value = "true" if var.get() else "false"
             else:
                 value = str(var.get()).strip()
+            if entry.choices:
+                value = choice_value_for_label(entry, value)
             if validate and not entry.accepts(value):
                 raise ValueError(f"Invalid value for {entry.token}: {value}")
             entry.value = value
+
+    def all_entries(self) -> list[ConfigEntry]:
+        return [entry for doc in self.documents for entry in doc.entries]
+
+    def entry_by_token(self, token: str) -> ConfigEntry | None:
+        for entry in self.all_entries():
+            if entry.token == token:
+                return entry
+        return None
+
+    def gpu_name(self) -> str:
+        entry = self.entry_by_token("GPUName:0.0")
+        return entry.value if entry else ""
+
+    def has_rtx_gpu(self) -> bool:
+        return is_rtx_gpu_name(self.gpu_name())
+
+    def current_aa_label(self) -> str:
+        preferred = self.entry_by_token("AATechniquePreferred:0.0") or self.entry_by_token("AATechniquePreferred:0.1")
+        if not preferred:
+            return ""
+        return choice_label_for_value(preferred, preferred.value)
+
+    def enforce_hardware_constraints(self) -> None:
+        if self.has_rtx_gpu():
+            return
+        for entry in self.all_entries():
+            if entry.key != "AATechniquePreferred":
+                continue
+            current = choice_label_for_value(entry, entry.value)
+            choices = filtered_aa_choices(entry, has_rtx=False)
+            if current in RTX_ONLY_AA_CHOICES and choices:
+                fallback = "SMAA T2x" if "SMAA T2x" in choices else choices[0]
+                entry.value = choice_value_for_label(entry, fallback)
+
+    def on_aa_changed(self, entry: ConfigEntry, var: tk.Variable) -> None:
+        entry.value = choice_value_for_label(entry, str(var.get()).strip())
+        self.enforce_hardware_constraints()
+        self.render_options(capture=False)
 
     @staticmethod
     def _range_step(bounds: tuple[float, float]) -> float:
@@ -686,13 +806,13 @@ class ConfiguratorApp(tk.Tk):
                 if not entry.accepts(value):
                     skipped.append(entry.token)
                     continue
-                entry.value = value
+                entry.value = choice_value_for_label(entry, value) if entry.choices else value
                 var = self.controls.get((doc.label, entry.line_index))
                 if var is not None:
                     if isinstance(var, tk.BooleanVar):
                         var.set(value == "true")
                     else:
-                        var.set(value)
+                        var.set(display_value_for_entry(entry))
                 changed += 1
 
         note = f"Preset loaded on screen: {changed} options."
