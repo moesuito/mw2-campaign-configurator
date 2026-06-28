@@ -8,14 +8,20 @@ The campaign settings screen can fail to save changes in some current game build
 
 ## Features
 
-- Native Windows GUI inspired by classic Battlefield settings editors.
+- Native PyQt6 Windows GUI inspired by classic Battlefield settings editors.
+- Full dark mode interface.
 - Left sidebar with the original game categories: Accessibility, Audio, Display, Gameplay, Graphics, Interface, Mouse and Gamepad, System, and Touch.
+- Normal and Advanced modes:
+  - `Normal` focuses on the main in-game menu style options.
+  - `Advanced` also shows extra readable config fields exposed by the files.
+- Tree-style subcategories inside each section, including grouped anti-aliasing/upscaler controls.
 - Automatically detects the default `Documents\Call of Duty MWII` folder.
 - Supports multiple Steam/profile folders under `players`.
 - Shows all editable options found in the campaign-effective text config files.
 - Uses control types based on the game's own metadata:
   - checkboxes for true/false options
   - dropdowns for `one of [...]` options
+  - sliders with numeric inputs for practical percentage/range settings
   - numeric inputs for ranged values
   - text inputs for free-form values
 - Includes quick presets: Low FPS, Balanced, High, Ultra, and Competitive.
@@ -49,9 +55,10 @@ Put it anywhere you like and run it. Backups are created next to the executable 
 3. Confirm the detected `Call of Duty MWII` folder, or choose it manually.
 4. Select the profile if more than one is detected.
 5. Choose a category from the sidebar.
-6. Edit values manually or load a preset.
-7. Click `Save Settings`.
-8. Start the campaign.
+6. Use `Normal` mode for the common settings, or `Advanced` to expose every supported readable field.
+7. Edit values manually or load a preset.
+8. Click `Save Settings`.
+9. Start the campaign.
 
 Use `Unlock Files` if you want the game to be able to write to the edited config files again.
 

@@ -10,7 +10,9 @@ from mw2_campaign_configurator import (
     choice_value_for_label,
     filtered_aa_choices,
     is_entry_visible_for_aa,
+    is_normal_mode_entry,
     is_rtx_gpu_name,
+    should_use_slider,
 )
 
 
@@ -94,3 +96,26 @@ def test_dlss_choices_require_rtx_gpu(tmp_path):
     assert "DLAA" not in filtered_aa_choices(aa_entry, has_rtx=False)
     assert is_entry_visible_for_aa(dlss_entry, "DLSS")
     assert not is_entry_visible_for_aa(xess_entry, "DLSS")
+
+
+def test_normal_mode_and_slider_classification(tmp_path):
+    path = tmp_path / "options.3.cod22.cst"
+    path.write_text(
+        '// Graphics\n'
+        'ResolutionMultiplier:0.0 = "75" // 0 to 200\n'
+        'StaticSunshadowClipmapResolution:0.0 = "1024" // 0 to 2147483647\n'
+        'VirtualTexturingMemoryMode:0.1 = "Large" // one of [Extra Small, Small, Medium, Large, Extra Large]\n'
+        '// Audio\n'
+        'Volume:0.0 = "1.000000" // 0.000000 to 1.000000\n',
+        encoding="utf-8",
+    )
+
+    doc = ConfigDocument.load(path, "Options")
+    resolution, static_shadow, virtual_texture, volume = doc.entries
+
+    assert is_normal_mode_entry(resolution)
+    assert is_normal_mode_entry(volume)
+    assert not is_normal_mode_entry(virtual_texture)
+    assert should_use_slider(resolution)
+    assert should_use_slider(volume)
+    assert not should_use_slider(static_shadow)

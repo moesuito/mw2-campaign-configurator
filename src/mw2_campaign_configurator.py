@@ -6,9 +6,32 @@ import re
 import shutil
 import stat
 import sys
-import tkinter as tk
 from dataclasses import dataclass
-from tkinter import filedialog, messagebox, ttk
+
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QIcon
+from PyQt6.QtWidgets import (
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QDoubleSpinBox,
+    QFileDialog,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMainWindow,
+    QMessageBox,
+    QPushButton,
+    QSlider,
+    QSizePolicy,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 APP_TITLE = "MW2 Campaign Configurator"
@@ -56,6 +79,115 @@ UPSCALER_VISIBLE_KEYS = {
     "FSR2": {"AMDSuperResolution2Quality"},
     "SMAA T2x": {"DefaultSMAATechnique", "SMAAQuality"},
     "Filmic SMAA T2x": {"DefaultSMAATechnique", "SMAAQuality"},
+}
+NORMAL_MODE_KEYS = {
+    "AATechniquePreferred",
+    "ADSFovScaling",
+    "ADSSensitivity",
+    "ADSTimingSensitivity",
+    "AudioMix",
+    "AudioWantedChannelsNumber",
+    "AMDContrastAdaptiveSharpeningStrength",
+    "AMDSuperResolution",
+    "AMDSuperResolutionQuality",
+    "AMDSuperResolution2Quality",
+    "AltShellShock",
+    "Brightness",
+    "BulletImpacts",
+    "CapFps",
+    "CinematicVolume",
+    "ConstrainMouse",
+    "DLSSPerfMode",
+    "DLSSSharpness",
+    "DefaultSMAATechnique",
+    "DeferredPhysics",
+    "DepthOfField",
+    "DisplayGamma",
+    "DisplayMode",
+    "DynamicSceneResolution",
+    "DynamicSceneResolutionTarget",
+    "EffectsVolume",
+    "EnableGamepad",
+    "FilmGrain",
+    "FilmicStrength",
+    "Fov",
+    "FreeLook",
+    "GTAOQuality",
+    "HDR",
+    "HDRGamma",
+    "HDRMaxLum",
+    "HDRMinLum",
+    "HitMarkersVolume",
+    "HUDHorizBound",
+    "HUDVertBound",
+    "LicensedContentVolume",
+    "LicensedMusicVolume",
+    "ModelLodDistanceQuality",
+    "ModelLodQuality",
+    "Monitor",
+    "MonoSound",
+    "MonoSoundAmount",
+    "MouseAcceleration",
+    "MouseFilter",
+    "MouseHorizontalSensibility",
+    "MouseInvertPitch",
+    "MouseMonitorDistanceCoeff",
+    "MouseSmoothing",
+    "MouseVerticalSensibility",
+    "MusicVolume",
+    "MuteAudioWhileOutOfFocus",
+    "NVIDIAImageScaling",
+    "NVIDIAImageScalingQuality",
+    "NVIDIAImageScalingSharpness",
+    "NvidiaReflex",
+    "ParticleLighting",
+    "ParticleQualityLevel",
+    "ParticuleResolution",
+    "PreferredDisplayMode",
+    "RefreshRate",
+    "Resolution",
+    "ResolutionMultiplier",
+    "SkipIntro",
+    "SMAAQuality",
+    "SSAOTechnique",
+    "SSRMode",
+    "ScreenSpaceShadowQuality",
+    "ShaderQuality",
+    "ShadowMapResolution",
+    "SpotShadowCacheSize",
+    "SpotShadowQualityLevel",
+    "SunShadowCascade",
+    "Tessellation",
+    "TextureFilter",
+    "TextureQuality",
+    "ThirdPersonFov",
+    "UiQuality",
+    "VSync",
+    "VSyncInMenu",
+    "VoiceChat",
+    "VoiceChatEffect",
+    "VoiceChatVolume",
+    "VoiceInputDevice",
+    "VoicePushToTalk",
+    "VoiceVolume",
+    "Volume",
+    "VolumetricQuality",
+    "WarTracksVolume",
+    "WaterCausticsMode",
+    "WaterWaveWetness",
+    "WeatherGridVolumesQuality",
+    "WorldStreamingQuality",
+    "XeSSQuality",
+}
+NON_SLIDER_RANGE_KEYS = {
+    "AudioMix",
+    "RendererWorkerCount",
+    "StaticSunshadowClipmapResolution",
+    "WeaponCycleDelay",
+    "WindowHeight",
+    "WindowWidth",
+    "WindowX",
+    "WindowY",
 }
 
 
@@ -160,6 +292,71 @@ def is_entry_visible_for_aa(entry: ConfigEntry, selected_aa: str) -> bool:
     if entry.key not in UPSCALER_CONFIG_KEYS:
         return True
     return entry.key in UPSCALER_VISIBLE_KEYS.get(selected_aa, set())
+
+
+def is_normal_mode_entry(entry: ConfigEntry) -> bool:
+    return entry.key in NORMAL_MODE_KEYS
+
+
+def should_use_slider(entry: ConfigEntry) -> bool:
+    bounds = entry.range_bounds
+    if not bounds or entry.key in NON_SLIDER_RANGE_KEYS:
+        return False
+    span = bounds[1] - bounds[0]
+    if span <= 0 or span > 1000:
+        return False
+    return (
+        bounds == (0.0, 1.0)
+        or bounds == (0.0, 100.0)
+        or entry.key in {
+            "ResolutionMultiplier",
+            "Fov",
+            "ThirdPersonFov",
+            "MaxFpsInGame",
+            "MaxFpsInMenu",
+            "MaxFpsOutOfFocus",
+            "Brightness",
+            "FilmGrain",
+            "DLSSSharpness",
+            "AMDContrastAdaptiveSharpeningStrength",
+            "NVIDIAImageScalingSharpness",
+            "VideoMemoryScale",
+        }
+    )
+
+
+def entry_subcategory(entry: ConfigEntry) -> str:
+    if entry.section == "Graphics":
+        if entry.key in {"AATechniquePreferred", *UPSCALER_CONFIG_KEYS}:
+            return "Anti-Aliasing / Upscaling"
+        if entry.key in {"TextureQuality", "TextureFilter", "ModelLodQuality", "ModelLodDistanceQuality", "WorldStreamingQuality", "VirtualTexturingLargeMemory", "VirtualTexturingMemoryMode"}:
+            return "Details & Textures"
+        if entry.key in {"ShadowMapResolution", "SpotShadowQualityLevel", "SpotShadowCacheSize", "ScreenSpaceShadowQuality", "SunShadowCascade", "SSAOTechnique", "GTAOQuality", "SSRMode", "ReflectionProbeHalfResolution", "ReflectionProbeRelighting", "VolumetricQuality", "WeatherGridVolumesQuality", "WaterCausticsMode", "WaterWaveWetness"}:
+            return "Shadows & Lighting"
+        if entry.key in {"DepthOfField", "FilmGrain", "FilmicStrength", "HDR", "HDRGamma", "HDRMaxLum", "HDRMinLum"}:
+            return "Post Processing"
+        if entry.key in {"ParticleQualityLevel", "ParticleLighting", "ParticuleResolution", "BulletImpacts", "PersistentDamageLayer", "DeferredPhysics", "ShaderQuality", "Tessellation"}:
+            return "Effects & Geometry"
+        return "Advanced Graphics"
+    if entry.section == "Display":
+        if entry.key in {"DisplayMode", "PreferredDisplayMode", "Monitor", "RefreshRate", "Resolution", "ResolutionMultiplier", "AspectRatio", "DisplayGamma", "HDR"}:
+            return "Display"
+        if entry.key in {"VSync", "VSyncInMenu", "CapFps", "MaxFpsInGame", "MaxFpsInMenu", "MaxFpsOutOfFocus", "NvidiaReflex", "DynamicSceneResolution", "DynamicSceneResolutionTarget"}:
+            return "Frame Rate"
+        return "Window"
+    if entry.section == "Audio":
+        if "Volume" in entry.key or entry.key in {"AudioMix", "CinematicVolume"}:
+            return "Volumes"
+        if "Voice" in entry.key or "Mic" in entry.key or "Microphone" in entry.key:
+            return "Voice Chat"
+        return "Playback"
+    if entry.section == "Mouse and Gamepad":
+        if "ADS" in entry.key:
+            return "ADS Sensitivity"
+        if "Vehicle" in entry.key or "Flight" in entry.key or "Air" in entry.key or "Land" in entry.key:
+            return "Vehicles"
+        return "Mouse"
+    return entry.section
 
 
 class ConfigDocument:
@@ -420,330 +617,378 @@ def restore_backup(backup_dir: pathlib.Path, documents: list[ConfigDocument]) ->
         make_readonly(doc.path)
 
 
-class ScrollFrame(ttk.Frame):
-    def __init__(self, master: tk.Widget):
-        super().__init__(master)
-        self.canvas = tk.Canvas(self, highlightthickness=0, bg="white")
-        self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
-        self.inner = ttk.Frame(self.canvas, style="Main.TFrame")
-        self.inner.bind("<Configure>", lambda _: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
-        self.window_id = self.canvas.create_window((0, 0), window=self.inner, anchor="nw")
-        self.canvas.configure(yscrollcommand=self.scrollbar.set)
-        self.canvas.bind("<Configure>", self._fit_width)
-        self.canvas.pack(side="left", fill="both", expand=True)
-        self.scrollbar.pack(side="right", fill="y")
+class SliderEditor(QWidget):
+    def __init__(self, entry: ConfigEntry):
+        super().__init__()
+        self.entry = entry
+        self.bounds = entry.range_bounds or (0.0, 1.0)
+        self.scale = 1000 if self.bounds[1] - self.bounds[0] <= 10 else 1
 
-    def _fit_width(self, event: tk.Event) -> None:
-        self.canvas.itemconfigure(self.window_id, width=event.width)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+
+        self.slider = QSlider(Qt.Orientation.Horizontal)
+        self.slider.setRange(0, self.to_slider(self.bounds[1]))
+        self.slider.setMinimum(self.to_slider(self.bounds[0]))
+        self.spin = QDoubleSpinBox()
+        self.spin.setRange(self.bounds[0], self.bounds[1])
+        self.spin.setDecimals(0 if QtConfiguratorWindow.is_integerish(entry.value, self.bounds) else 6)
+        self.spin.setSingleStep(QtConfiguratorWindow._range_step(self.bounds))
+
+        try:
+            initial = float(entry.value)
+        except ValueError:
+            initial = self.bounds[0]
+        self.spin.setValue(initial)
+        self.slider.setValue(self.to_slider(initial))
+
+        self.slider.valueChanged.connect(self.on_slider_changed)
+        self.spin.valueChanged.connect(self.on_spin_changed)
+        layout.addWidget(self.slider, 1)
+        layout.addWidget(self.spin)
+
+    def to_slider(self, value: float) -> int:
+        return int(round(value * self.scale))
+
+    def from_slider(self, value: int) -> float:
+        return value / self.scale
+
+    def on_slider_changed(self, value: int) -> None:
+        target = self.from_slider(value)
+        if abs(self.spin.value() - target) > 0.000001:
+            self.spin.blockSignals(True)
+            self.spin.setValue(target)
+            self.spin.blockSignals(False)
+
+    def on_spin_changed(self, value: float) -> None:
+        target = self.to_slider(value)
+        if self.slider.value() != target:
+            self.slider.blockSignals(True)
+            self.slider.setValue(target)
+            self.slider.blockSignals(False)
+
+    def value(self) -> float:
+        return self.spin.value()
 
 
-class ConfiguratorApp(tk.Tk):
+class QtConfiguratorWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.title(APP_TITLE)
-        self.geometry("1180x760")
-        self.minsize(980, 620)
-
         self.repo_dir = app_data_dir()
-        self.game_dir_var = tk.StringVar(value=str(default_game_dir()))
-        self.profile_var = tk.StringVar()
-        self.status_var = tk.StringVar(value="Select the game folder.")
-        self.search_var = tk.StringVar()
-        self.preset_var = tk.StringVar(value="Balanced")
-
         self.documents: list[ConfigDocument] = []
-        self.controls: dict[tuple[str, int], tk.Variable] = {}
-        self.profile_combo: ttk.Combobox | None = None
-        self.category_buttons: dict[str, tk.Button] = {}
-        self.category_frame: tk.Frame | None = None
-        self.options_scroll: ScrollFrame | None = None
-        self.options_host: ttk.Frame | None = None
-        self.section_title_var = tk.StringVar(value="Settings")
-        self.section_meta_var = tk.StringVar(value="")
-        self.current_section: str | None = None
+        self.controls: dict[tuple[str, int], object] = {}
+        self.current_section = "Graphics"
+        self.game_dir = default_game_dir()
 
-        self._configure_style()
-        self._build_shell()
+        self.setWindowTitle(APP_TITLE)
+        self.resize(1180, 760)
+        icon_path = self.repo_dir / "assets" / "app.ico"
+        if icon_path.exists():
+            self.setWindowIcon(QIcon(str(icon_path)))
+
+        self._build_ui()
         self.reload_profiles(auto=True)
 
-    def _configure_style(self) -> None:
-        style = ttk.Style(self)
-        if "vista" in style.theme_names():
-            style.theme_use("vista")
-        style.configure("Title.TLabel", font=("Segoe UI", 14, "bold"))
-        style.configure("Small.TLabel", font=("Segoe UI", 9))
-        style.configure("TableHead.TLabel", font=("Segoe UI", 9, "bold"), background="white")
-        style.configure("Main.TFrame", background="white")
+    def _build_ui(self) -> None:
+        root = QWidget()
+        root.setObjectName("root")
+        self.setCentralWidget(root)
+        layout = QVBoxLayout(root)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
-    def _build_shell(self) -> None:
-        header = tk.Frame(self, bg=COLOR_HEADER, height=78)
-        header.pack(fill="x")
-        header.pack_propagate(False)
+        header = QFrame()
+        header.setObjectName("header")
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(22, 14, 14, 14)
+        title = QLabel('<span style="font-size:30px;font-weight:700;">MW2</span>'
+                       '<span style="font-size:21px;"> Campaign Settings Editor</span>')
+        title.setObjectName("headerTitle")
+        header_layout.addWidget(title)
+        header_layout.addStretch(1)
+        for label, handler in (
+            ("Profiles", self.reload_profiles),
+            ("Settings", lambda: self.select_section("Graphics")),
+            ("Help", self.show_help),
+        ):
+            button = QPushButton(label)
+            button.setFixedWidth(86)
+            button.clicked.connect(handler)
+            header_layout.addWidget(button)
+        layout.addWidget(header)
 
-        brand = tk.Frame(header, bg=COLOR_HEADER)
-        brand.pack(side="left", fill="y", padx=18)
-        tk.Label(
-            brand,
-            text="MW2",
-            bg=COLOR_HEADER,
-            fg="white",
-            font=("Segoe UI", 22, "bold"),
-        ).pack(side="left", pady=12)
-        tk.Label(
-            brand,
-            text=" Campaign Settings Editor",
-            bg=COLOR_HEADER,
-            fg="white",
-            font=("Segoe UI", 16),
-        ).pack(side="left", pady=12)
+        top = QFrame()
+        top.setObjectName("topBar")
+        top_layout = QHBoxLayout(top)
+        top_layout.setContentsMargins(10, 8, 10, 8)
+        top_layout.addWidget(QLabel("MWII Folder"))
+        self.folder_edit = QLineEdit(str(self.game_dir))
+        top_layout.addWidget(self.folder_edit, 1)
+        browse = QPushButton("Browse")
+        browse.clicked.connect(self.choose_game_dir)
+        top_layout.addWidget(browse)
+        reload_button = QPushButton("Reload")
+        reload_button.clicked.connect(self.reload_profiles)
+        top_layout.addWidget(reload_button)
+        top_layout.addWidget(QLabel("Profile"))
+        self.profile_combo = QComboBox()
+        self.profile_combo.currentTextChanged.connect(lambda _value: self.load_documents())
+        top_layout.addWidget(self.profile_combo)
+        layout.addWidget(top)
 
-        header_actions = tk.Frame(header, bg=COLOR_HEADER)
-        header_actions.pack(side="right", padx=10, pady=14)
-        tk.Button(header_actions, text="Profiles", width=10, command=self.reload_profiles).pack(side="left", padx=3)
-        tk.Button(header_actions, text="Settings", width=10, command=lambda: self.select_section("Graphics")).pack(side="left", padx=3)
-        tk.Button(header_actions, text="Help", width=8, command=self.show_help).pack(side="left", padx=3)
+        body = QHBoxLayout()
+        body.setContentsMargins(0, 0, 0, 0)
+        body.setSpacing(0)
+        body_wrap = QWidget()
+        body_wrap.setLayout(body)
+        layout.addWidget(body_wrap, 1)
 
-        top = ttk.Frame(self, padding=(10, 8, 10, 8))
-        top.pack(fill="x")
+        self.sidebar = QListWidget()
+        self.sidebar.setObjectName("sidebar")
+        self.sidebar.setFixedWidth(166)
+        self.sidebar.currentTextChanged.connect(self.select_section)
+        body.addWidget(self.sidebar)
 
-        ttk.Label(top, text="MWII Folder").grid(row=0, column=0, sticky="w")
-        ttk.Entry(top, textvariable=self.game_dir_var).grid(row=0, column=1, sticky="ew", padx=8)
-        ttk.Button(top, text="Browse", command=self.choose_game_dir).grid(row=0, column=2)
-        ttk.Button(top, text="Reload", command=self.reload_profiles).grid(row=0, column=3, padx=(8, 0))
+        main = QWidget()
+        main.setObjectName("mainPanel")
+        main_layout = QVBoxLayout(main)
+        main_layout.setContentsMargins(20, 16, 20, 10)
+        main_layout.setSpacing(10)
+        self.section_title = QLabel("Settings")
+        self.section_title.setObjectName("sectionTitle")
+        main_layout.addWidget(self.section_title)
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setObjectName("sectionRule")
+        main_layout.addWidget(line)
 
-        ttk.Label(top, text="Profile").grid(row=0, column=4, sticky="w", padx=(14, 0))
-        self.profile_combo = ttk.Combobox(top, textvariable=self.profile_var, state="readonly", width=30)
-        self.profile_combo.grid(row=0, column=5, sticky="w", padx=8)
-        self.profile_combo.bind("<<ComboboxSelected>>", lambda _: self.load_documents())
-        top.columnconfigure(1, weight=1)
+        tools = QHBoxLayout()
+        tools.addWidget(QLabel("Mode"))
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItems(["Normal", "Advanced"])
+        self.mode_combo.currentTextChanged.connect(lambda _value: self.render_options())
+        tools.addWidget(self.mode_combo)
+        tools.addSpacing(12)
+        tools.addWidget(QLabel("Preset"))
+        self.preset_combo = QComboBox()
+        self.preset_combo.addItems(list(PRESETS))
+        self.preset_combo.setCurrentText("Balanced")
+        tools.addWidget(self.preset_combo)
+        preset_button = QPushButton("Load Preset")
+        preset_button.clicked.connect(self.apply_preset_to_ui)
+        tools.addWidget(preset_button)
+        tools.addSpacing(18)
+        tools.addWidget(QLabel("Search"))
+        self.search_edit = QLineEdit()
+        self.search_edit.returnPressed.connect(self.render_options)
+        tools.addWidget(self.search_edit, 1)
+        filter_button = QPushButton("Filter")
+        filter_button.clicked.connect(self.render_options)
+        tools.addWidget(filter_button)
+        clear_button = QPushButton("Clear")
+        clear_button.clicked.connect(self.clear_filter)
+        tools.addWidget(clear_button)
+        self.section_meta = QLabel("")
+        self.section_meta.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        tools.addWidget(self.section_meta)
+        main_layout.addLayout(tools)
 
-        body = tk.Frame(self, bg="white")
-        body.pack(fill="both", expand=True)
+        self.tree = QTreeWidget()
+        self.tree.setObjectName("optionsTree")
+        self.tree.setColumnCount(3)
+        self.tree.setHeaderLabels(["Option", "Source", "Value"])
+        self.tree.setAlternatingRowColors(True)
+        self.tree.setUniformRowHeights(False)
+        self.tree.setAnimated(True)
+        self.tree.header().setStretchLastSection(True)
+        self.tree.setColumnWidth(0, 430)
+        self.tree.setColumnWidth(1, 300)
+        main_layout.addWidget(self.tree, 1)
+        body.addWidget(main, 1)
 
-        side = tk.Frame(body, bg=COLOR_NAV, width=160)
-        side.pack(side="left", fill="y")
-        side.pack_propagate(False)
-        self.category_frame = tk.Frame(side, bg=COLOR_NAV)
-        self.category_frame.pack(fill="both", expand=True, pady=(10, 0))
+        footer = QFrame()
+        footer.setObjectName("footer")
+        footer_layout = QHBoxLayout(footer)
+        footer_layout.setContentsMargins(8, 5, 8, 5)
+        for label, handler in (
+            ("Reload Settings", self.reload_profiles),
+            ("Save Settings", self.save_all),
+            ("Unlock Files", self.unlock_files),
+        ):
+            button = QPushButton(label)
+            button.clicked.connect(handler)
+            footer_layout.addWidget(button)
+        self.status_label = QLabel("Select the game folder.")
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        footer_layout.addWidget(self.status_label, 1)
+        about = QPushButton("About...")
+        about.clicked.connect(self.show_about)
+        footer_layout.addWidget(about)
+        restore = QPushButton("Restore Backup")
+        restore.clicked.connect(self.restore_latest_backup)
+        footer_layout.addWidget(restore)
+        layout.addWidget(footer)
 
-        main = ttk.Frame(body, style="Main.TFrame", padding=(20, 16, 20, 10))
-        main.pack(side="left", fill="both", expand=True)
+        self.setStyleSheet(
+            """
+            QWidget#root, QWidget#mainPanel {
+                background: #111418;
+                color: #e8edf2;
+            }
+            QFrame#header {
+                background: #050607;
+            }
+            QLabel#headerTitle {
+                color: white;
+            }
+            QFrame#topBar {
+                background: #171b20;
+                border-bottom: 1px solid #2a3037;
+                color: #e8edf2;
+            }
+            QListWidget#sidebar {
+                background: #161b21;
+                border: 0;
+                color: #dce3ea;
+                outline: 0;
+            }
+            QListWidget#sidebar::item {
+                padding: 12px 20px;
+            }
+            QListWidget#sidebar::item:selected {
+                background: #c8102e;
+                color: white;
+                font-weight: 700;
+            }
+            QTreeWidget#optionsTree {
+                background: #111418;
+                alternate-background-color: #151a20;
+                color: #e8edf2;
+                border: 1px solid #2a3037;
+                gridline-color: #2a3037;
+                selection-background-color: #2b3a48;
+                selection-color: #ffffff;
+            }
+            QTreeWidget#optionsTree::item {
+                padding: 4px;
+            }
+            QTreeWidget#optionsTree::branch {
+                background: transparent;
+            }
+            QHeaderView::section {
+                background: #20262e;
+                color: #f2f5f7;
+                padding: 6px;
+                border: 0;
+                border-right: 1px solid #2a3037;
+                font-weight: 700;
+            }
+            QLabel#sectionTitle {
+                font-size: 20px;
+                font-weight: 700;
+                color: #f2f5f7;
+            }
+            QFrame#sectionRule {
+                color: #343c46;
+                background: #343c46;
+                max-height: 1px;
+            }
+            QFrame#footer {
+                background: #171b20;
+                border-top: 1px solid #2a3037;
+                color: #e8edf2;
+            }
+            QLineEdit, QComboBox, QDoubleSpinBox {
+                background: #0c0f12;
+                color: #f2f5f7;
+                border: 1px solid #3a4652;
+                padding: 3px 5px;
+            }
+            QPushButton {
+                background: #232a32;
+                color: #f2f5f7;
+                border: 1px solid #4a5562;
+                padding: 5px 10px;
+            }
+            QPushButton:hover {
+                background: #303946;
+            }
+            QCheckBox {
+                color: #e8edf2;
+            }
+            QSlider::groove:horizontal {
+                height: 5px;
+                background: #303946;
+                border-radius: 2px;
+            }
+            QSlider::handle:horizontal {
+                width: 14px;
+                margin: -5px 0;
+                border-radius: 7px;
+                background: #c8102e;
+            }
+            QScrollBar:vertical {
+                background: #111418;
+                width: 12px;
+            }
+            QScrollBar::handle:vertical {
+                background: #3a4652;
+                min-height: 24px;
+            }
+            """
+        )
 
-        ttk.Label(main, textvariable=self.section_title_var, style="Title.TLabel", background="white").pack(anchor="w")
-        tk.Frame(main, height=1, bg="#222222").pack(fill="x", pady=(6, 10))
-
-        toolrow = ttk.Frame(main, style="Main.TFrame")
-        toolrow.pack(fill="x", pady=(0, 10))
-        ttk.Label(toolrow, text="Preset", background="white").pack(side="left")
-        preset_box = ttk.Combobox(toolrow, textvariable=self.preset_var, values=list(PRESETS), state="readonly", width=18)
-        preset_box.pack(side="left", padx=(6, 6))
-        ttk.Button(toolrow, text="Load Preset", command=self.apply_preset_to_ui).pack(side="left")
-
-        ttk.Label(toolrow, text="Search", background="white").pack(side="left", padx=(18, 0))
-        search_entry = ttk.Entry(toolrow, textvariable=self.search_var, width=28)
-        search_entry.pack(side="left", padx=(6, 6))
-        search_entry.bind("<Return>", lambda _: self.render_options())
-        ttk.Button(toolrow, text="Filter", command=self.render_options).pack(side="left")
-        ttk.Button(toolrow, text="Clear", command=self.clear_filter).pack(side="left", padx=(6, 0))
-        ttk.Label(toolrow, textvariable=self.section_meta_var, style="Small.TLabel", background="white").pack(side="right")
-
-        self.options_host = ttk.Frame(main, style="Main.TFrame")
-        self.options_host.pack(fill="both", expand=True)
-
-        footer = tk.Frame(self, bg=COLOR_FOOTER, height=36, highlightbackground="#c8c8c8", highlightthickness=1)
-        footer.pack(fill="x", side="bottom")
-        footer.pack_propagate(False)
-        tk.Button(footer, text="Reload Settings", command=self.reload_profiles).pack(side="left", padx=(8, 4), pady=5)
-        tk.Button(footer, text="Save Settings", command=self.save_all).pack(side="left", padx=4, pady=5)
-        tk.Button(footer, text="Unlock Files", command=self.unlock_files).pack(side="left", padx=4, pady=5)
-        tk.Label(footer, textvariable=self.status_var, bg=COLOR_FOOTER).pack(side="left", fill="x", expand=True, padx=12)
-        tk.Button(footer, text="Restore Backup", command=self.restore_latest_backup).pack(side="right", padx=4, pady=5)
-        tk.Button(footer, text="About...", command=self.show_about).pack(side="right", padx=(4, 8), pady=5)
+    def set_status(self, text: str) -> None:
+        self.status_label.setText(text)
 
     def choose_game_dir(self) -> None:
-        path = filedialog.askdirectory(title="Select the Call of Duty MWII folder")
-        if path:
-            self.game_dir_var.set(path)
+        selected = QFileDialog.getExistingDirectory(self, "Select the Call of Duty MWII folder", self.folder_edit.text())
+        if selected:
+            self.folder_edit.setText(selected)
             self.reload_profiles()
 
     def reload_profiles(self, auto: bool = False) -> None:
-        game_dir = pathlib.Path(self.game_dir_var.get())
-        profiles = discover_profiles(game_dir)
+        self.game_dir = pathlib.Path(self.folder_edit.text())
+        profiles = discover_profiles(self.game_dir)
         if not profiles and auto:
             fallback = pathlib.Path.cwd()
             if (fallback / "players").exists():
-                self.game_dir_var.set(str(fallback))
+                self.game_dir = fallback
+                self.folder_edit.setText(str(fallback))
                 profiles = discover_profiles(fallback)
 
-        if self.profile_combo:
-            self.profile_combo["values"] = profiles
+        blocked = self.profile_combo.blockSignals(True)
+        current = self.profile_combo.currentText()
+        self.profile_combo.clear()
+        self.profile_combo.addItems(profiles)
+        if current in profiles:
+            self.profile_combo.setCurrentText(current)
+        self.profile_combo.blockSignals(blocked)
+
         if profiles:
-            if self.profile_var.get() not in profiles:
-                self.profile_var.set(profiles[0])
             self.load_documents()
         else:
             self.documents = []
             self.render_options(capture=False)
-            self.status_var.set("No valid profile found under players\\<profile-id>.")
+            self.set_status("No valid profile found under players\\<profile-id>.")
 
     def load_documents(self) -> None:
+        profile = self.profile_combo.currentText()
+        if not profile:
+            return
         try:
-            game_dir = pathlib.Path(self.game_dir_var.get())
-            profile = self.profile_var.get()
-            validate_game_dir(game_dir, profile)
-            self.documents = [ConfigDocument.load(path, label) for path, label in target_paths(game_dir, profile)]
+            validate_game_dir(self.game_dir, profile)
+            self.documents = [ConfigDocument.load(path, label) for path, label in target_paths(self.game_dir, profile)]
             self.enforce_hardware_constraints()
             readonly = ", ".join(f"{doc.label}: {'RO' if is_readonly(doc.path) else 'RW'}" for doc in self.documents)
             total = sum(len(doc.entries) for doc in self.documents)
-            self.status_var.set(f"{total} options loaded. {readonly}")
+            self.set_status(f"{total} options loaded. {readonly}")
             self.render_options(capture=False)
         except Exception as exc:
             self.documents = []
             self.render_options(capture=False)
-            messagebox.showerror(APP_TITLE, str(exc))
-
-    def clear_filter(self) -> None:
-        self.search_var.set("")
-        self.render_options()
-
-    def entries_by_section(self) -> dict[str, list[tuple[ConfigDocument, ConfigEntry]]]:
-        needle = self.search_var.get().strip().lower()
-        grouped: dict[str, list[tuple[ConfigDocument, ConfigEntry]]] = {}
-        for doc in self.documents:
-            for entry in doc.entries:
-                haystack = " ".join([entry.key, entry.description, entry.section, doc.label]).lower()
-                if needle and needle not in haystack:
-                    continue
-                if not is_entry_visible_for_aa(entry, self.current_aa_label()):
-                    continue
-                grouped.setdefault(entry.section, []).append((doc, entry))
-        return grouped
-
-    def render_options(self, capture: bool = True) -> None:
-        if not self.options_host:
-            return
-        if capture:
-            self.capture_visible_controls(validate=False)
-        for child in self.options_host.winfo_children():
-            child.destroy()
-        self.controls.clear()
-
-        grouped = self.entries_by_section()
-        if not grouped:
-            self.render_category_buttons([])
-            self.section_title_var.set("Settings")
-            self.section_meta_var.set("")
-            frame = ttk.Frame(self.options_host, padding=16, style="Main.TFrame")
-            ttk.Label(frame, text="No options loaded.", background="white").pack(anchor="w")
-            frame.pack(fill="both", expand=True)
-            return
-
-        sections = sorted(grouped)
-        self.render_category_buttons(sections)
-        if self.current_section not in grouped:
-            preferred = "Graphics" if "Graphics" in grouped else sections[0]
-            self.current_section = preferred
-
-        entries = grouped[self.current_section]
-        self.section_title_var.set(self.current_section)
-        self.section_meta_var.set(f"{len(entries)} options")
-        self.options_scroll = ScrollFrame(self.options_host)
-        self.options_scroll.pack(fill="both", expand=True)
-        self._add_table_header(self.options_scroll.inner)
-        for row, (doc, entry) in enumerate(entries, start=1):
-            self._add_entry_row(self.options_scroll.inner, row, doc, entry)
-
-    def render_category_buttons(self, sections: list[str]) -> None:
-        if not self.category_frame:
-            return
-        for child in self.category_frame.winfo_children():
-            child.destroy()
-        self.category_buttons.clear()
-        for section in sections:
-            active = section == self.current_section
-            button = tk.Button(
-                self.category_frame,
-                text=section,
-                anchor="w",
-                relief="flat",
-                borderwidth=0,
-                padx=22,
-                pady=11,
-                bg=COLOR_NAV_ACTIVE if active else COLOR_NAV,
-                fg="white" if active else COLOR_NAV_TEXT,
-                activebackground=COLOR_NAV_ACTIVE,
-                activeforeground="white",
-                font=("Segoe UI", 9, "bold" if active else "normal"),
-                command=lambda value=section: self.select_section(value),
-            )
-            button.pack(fill="x")
-            self.category_buttons[section] = button
-
-    def select_section(self, section: str) -> None:
-        self.current_section = section
-        self.render_options()
-
-    def _add_table_header(self, parent: ttk.Frame) -> None:
-        ttk.Label(parent, text="Option", style="TableHead.TLabel").grid(row=0, column=0, sticky="w", padx=(8, 10), pady=(0, 6))
-        ttk.Label(parent, text="Source", style="TableHead.TLabel").grid(row=0, column=1, sticky="w", padx=(0, 10), pady=(0, 6))
-        ttk.Label(parent, text="Value", style="TableHead.TLabel").grid(row=0, column=2, sticky="w", padx=(0, 8), pady=(0, 6))
-        tk.Frame(parent, height=1, bg=COLOR_BORDER).grid(row=1, column=0, columnspan=3, sticky="ew", padx=6, pady=(0, 3))
-
-    def _add_entry_row(self, parent: ttk.Frame, row: int, doc: ConfigDocument, entry: ConfigEntry) -> None:
-        grid_row = row + 1
-        label_text = entry.description or entry.key
-        ttk.Label(parent, text=label_text, wraplength=470, justify="left", background="white").grid(row=grid_row, column=0, sticky="w", padx=(8, 10), pady=4)
-        ttk.Label(parent, text=f"{doc.label} / {entry.token}", style="Small.TLabel", background="white").grid(row=grid_row, column=1, sticky="w", padx=(0, 10), pady=4)
-
-        key = (doc.label, entry.line_index)
-        if entry.kind == "bool":
-            var = tk.BooleanVar(value=entry.value == "true")
-            widget = ttk.Checkbutton(parent, variable=var)
-        elif entry.kind == "choice":
-            choices = filtered_aa_choices(entry, self.has_rtx_gpu())
-            current = display_value_for_entry(entry)
-            if entry.key == "AATechniquePreferred" and current not in choices and choices:
-                current = choices[0]
-                entry.value = choice_value_for_label(entry, current)
-            var = tk.StringVar(value=current)
-            widget = ttk.Combobox(parent, textvariable=var, values=choices, state="readonly", width=28)
-            if entry.key == "AATechniquePreferred":
-                widget.bind("<<ComboboxSelected>>", lambda _event, item=entry, variable=var: self.on_aa_changed(item, variable))
-        elif entry.kind == "range":
-            var = tk.StringVar(value=entry.value)
-            bounds = entry.range_bounds or (0, 1)
-            widget = ttk.Spinbox(parent, textvariable=var, from_=bounds[0], to=bounds[1], increment=self._range_step(bounds), width=18)
-        else:
-            var = tk.StringVar(value=entry.value)
-            widget = ttk.Entry(parent, textvariable=var, width=30)
-
-        widget.grid(row=grid_row, column=2, sticky="ew", padx=(0, 8), pady=4)
-        parent.columnconfigure(0, weight=3)
-        parent.columnconfigure(1, weight=1)
-        parent.columnconfigure(2, weight=1)
-        self.controls[key] = var
-
-    def capture_visible_controls(self, validate: bool = True) -> None:
-        if not self.controls:
-            return
-        by_key = {
-            (doc.label, entry.line_index): entry
-            for doc in self.documents
-            for entry in doc.entries
-        }
-        for key, var in self.controls.items():
-            entry = by_key.get(key)
-            if not entry:
-                continue
-            if isinstance(var, tk.BooleanVar):
-                value = "true" if var.get() else "false"
-            else:
-                value = str(var.get()).strip()
-            if entry.choices:
-                value = choice_value_for_label(entry, value)
-            if validate and not entry.accepts(value):
-                raise ValueError(f"Invalid value for {entry.token}: {value}")
-            entry.value = value
+            QMessageBox.critical(self, APP_TITLE, str(exc))
 
     def all_entries(self) -> list[ConfigEntry]:
         return [entry for doc in self.documents for entry in doc.entries]
@@ -779,10 +1024,124 @@ class ConfiguratorApp(tk.Tk):
                 fallback = "SMAA T2x" if "SMAA T2x" in choices else choices[0]
                 entry.value = choice_value_for_label(entry, fallback)
 
-    def on_aa_changed(self, entry: ConfigEntry, var: tk.Variable) -> None:
-        entry.value = choice_value_for_label(entry, str(var.get()).strip())
-        self.enforce_hardware_constraints()
-        self.render_options(capture=False)
+    def entries_by_section(self) -> dict[str, list[tuple[ConfigDocument, ConfigEntry]]]:
+        needle = self.search_edit.text().strip().lower()
+        grouped: dict[str, list[tuple[ConfigDocument, ConfigEntry]]] = {}
+        selected_aa = self.current_aa_label()
+        normal_mode = self.mode_combo.currentText() == "Normal"
+        for doc in self.documents:
+            for entry in doc.entries:
+                if not is_entry_visible_for_aa(entry, selected_aa):
+                    continue
+                if normal_mode and not is_normal_mode_entry(entry):
+                    continue
+                haystack = " ".join([entry.key, entry.description, entry.section, doc.label]).lower()
+                if needle and needle not in haystack:
+                    continue
+                grouped.setdefault(entry.section, []).append((doc, entry))
+        return grouped
+
+    def clear_filter(self) -> None:
+        self.search_edit.clear()
+        self.render_options()
+
+    def select_section(self, section: str) -> None:
+        if not section:
+            return
+        if section == self.current_section and self.controls:
+            return
+        self.current_section = section
+        self.render_options()
+
+    def render_sidebar(self, sections: list[str]) -> None:
+        blocked = self.sidebar.blockSignals(True)
+        self.sidebar.clear()
+        for section in sections:
+            QListWidgetItem(section, self.sidebar)
+        matches = self.sidebar.findItems(self.current_section, Qt.MatchFlag.MatchExactly)
+        if matches:
+            self.sidebar.setCurrentItem(matches[0])
+        self.sidebar.blockSignals(blocked)
+
+    def render_options(self, capture: bool = True) -> None:
+        if capture:
+            self.capture_visible_controls(validate=False)
+        self.controls.clear()
+        self.tree.clear()
+
+        grouped = self.entries_by_section()
+        if not grouped:
+            self.render_sidebar([])
+            QTreeWidgetItem(self.tree, ["No options loaded.", "", ""])
+            self.section_title.setText("Settings")
+            self.section_meta.setText("")
+            return
+
+        sections = sorted(grouped)
+        if self.current_section not in grouped:
+            self.current_section = "Graphics" if "Graphics" in grouped else sections[0]
+        self.render_sidebar(sections)
+
+        entries = grouped[self.current_section]
+        self.section_title.setText(self.current_section)
+        mode_note = self.mode_combo.currentText()
+        self.section_meta.setText(f"{len(entries)} options · {mode_note}")
+
+        by_subcategory: dict[str, list[tuple[ConfigDocument, ConfigEntry]]] = {}
+        for doc, entry in entries:
+            by_subcategory.setdefault(entry_subcategory(entry), []).append((doc, entry))
+
+        for subcategory, sub_entries in sorted(by_subcategory.items()):
+            parent = QTreeWidgetItem(self.tree, [subcategory, "", ""])
+            parent.setFirstColumnSpanned(True)
+            parent.setExpanded(True)
+            parent.setFlags(parent.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+            for doc, entry in sub_entries:
+                item = QTreeWidgetItem(parent, [entry.description or entry.key, f"{doc.label} / {entry.token}", ""])
+                item.setToolTip(0, entry.key)
+                self.tree.setItemWidget(item, 2, self.create_value_widget(doc, entry))
+
+        self.tree.expandAll()
+
+    def create_value_widget(self, doc: ConfigDocument, entry: ConfigEntry) -> QWidget:
+        key = (doc.label, entry.line_index)
+        if entry.kind == "bool":
+            widget = QCheckBox()
+            widget.setChecked(entry.value == "true")
+        elif entry.kind == "choice":
+            widget = QComboBox()
+            choices = filtered_aa_choices(entry, self.has_rtx_gpu())
+            widget.addItems(choices)
+            current = display_value_for_entry(entry)
+            if entry.key == "AATechniquePreferred" and current not in choices and choices:
+                current = choices[0]
+                entry.value = choice_value_for_label(entry, current)
+            widget.setCurrentText(current)
+            if entry.key == "AATechniquePreferred":
+                widget.currentTextChanged.connect(lambda value, item=entry: self.on_aa_changed(item, value))
+        elif entry.kind == "range":
+            if should_use_slider(entry):
+                widget = SliderEditor(entry)
+            else:
+                widget = QDoubleSpinBox()
+                bounds = entry.range_bounds or (0.0, 1.0)
+                widget.setRange(bounds[0], bounds[1])
+                widget.setDecimals(0 if self.is_integerish(entry.value, bounds) else 6)
+                widget.setSingleStep(self._range_step(bounds))
+                try:
+                    widget.setValue(float(entry.value))
+                except ValueError:
+                    widget.setValue(bounds[0])
+        else:
+            widget = QLineEdit(entry.value)
+
+        widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.controls[key] = widget
+        return widget
+
+    @staticmethod
+    def is_integerish(value: str, bounds: tuple[float, float]) -> bool:
+        return "." not in value and bounds[0].is_integer() and bounds[1].is_integer()
 
     @staticmethod
     def _range_step(bounds: tuple[float, float]) -> float:
@@ -793,9 +1152,49 @@ class ConfiguratorApp(tk.Tk):
             return 0.1
         return 1
 
+    def capture_visible_controls(self, validate: bool = True) -> None:
+        if not self.controls:
+            return
+        by_key = {
+            (doc.label, entry.line_index): entry
+            for doc in self.documents
+            for entry in doc.entries
+        }
+        for key, widget in self.controls.items():
+            entry = by_key.get(key)
+            if not entry:
+                continue
+            if isinstance(widget, QCheckBox):
+                value = "true" if widget.isChecked() else "false"
+            elif isinstance(widget, QComboBox):
+                value = choice_value_for_label(entry, widget.currentText())
+            elif isinstance(widget, QDoubleSpinBox):
+                value = self.format_number(entry, widget.value())
+            elif isinstance(widget, SliderEditor):
+                value = self.format_number(entry, widget.value())
+            elif isinstance(widget, QLineEdit):
+                value = widget.text().strip()
+            else:
+                continue
+            if validate and not entry.accepts(value):
+                raise ValueError(f"Invalid value for {entry.token}: {value}")
+            entry.value = value
+
+    @staticmethod
+    def format_number(entry: ConfigEntry, value: float) -> str:
+        if "." in entry.value:
+            decimals = len(entry.value.split(".", 1)[1])
+            return f"{value:.{decimals}f}"
+        return str(int(round(value)))
+
+    def on_aa_changed(self, entry: ConfigEntry, value: str) -> None:
+        entry.value = choice_value_for_label(entry, value)
+        self.enforce_hardware_constraints()
+        self.render_options(capture=False)
+
     def apply_preset_to_ui(self) -> None:
         self.capture_visible_controls(validate=False)
-        preset = PRESETS[self.preset_var.get()]
+        preset = PRESETS[self.preset_combo.currentText()]
         changed = 0
         skipped: list[str] = []
         for doc in self.documents:
@@ -807,39 +1206,18 @@ class ConfiguratorApp(tk.Tk):
                     skipped.append(entry.token)
                     continue
                 entry.value = choice_value_for_label(entry, value) if entry.choices else value
-                var = self.controls.get((doc.label, entry.line_index))
-                if var is not None:
-                    if isinstance(var, tk.BooleanVar):
-                        var.set(value == "true")
-                    else:
-                        var.set(display_value_for_entry(entry))
                 changed += 1
-
+        self.enforce_hardware_constraints()
+        self.render_options(capture=False)
         note = f"Preset loaded on screen: {changed} options."
         if skipped:
             note += f" Skipped by validation: {len(skipped)}."
-        self.status_var.set(note)
-
-    def show_help(self) -> None:
-        messagebox.showinfo(
-            APP_TITLE,
-            "Use the sidebar to browse categories.\n"
-            "Load a preset or edit values manually.\n"
-            "Save Settings creates a backup and marks the files as read-only.",
-        )
-
-    def show_about(self) -> None:
-        messagebox.showinfo(
-            APP_TITLE,
-            "MW2 Campaign Configurator\n"
-            "Edits only the campaign-effective files under players.",
-        )
+        self.set_status(note)
 
     def save_all(self) -> None:
         if not self.documents:
-            messagebox.showwarning(APP_TITLE, "Load a valid game folder before saving.")
+            QMessageBox.warning(self, APP_TITLE, "Load a valid game folder before saving.")
             return
-
         try:
             self.capture_visible_controls(validate=True)
             backup_dir = backup_documents(self.documents, self.repo_dir)
@@ -852,37 +1230,57 @@ class ConfiguratorApp(tk.Tk):
                 doc.save()
                 make_readonly(doc.path)
             self.load_documents()
-            messagebox.showinfo(APP_TITLE, f"Settings saved.\nBackup: {backup_dir}")
+            QMessageBox.information(self, APP_TITLE, f"Settings saved.\nBackup: {backup_dir}")
         except Exception as exc:
-            messagebox.showerror(APP_TITLE, str(exc))
+            QMessageBox.critical(self, APP_TITLE, str(exc))
 
     def unlock_files(self) -> None:
         try:
             for doc in self.documents:
                 make_writable(doc.path)
             self.load_documents()
-            messagebox.showinfo(APP_TITLE, "Read-only removed from the loaded files.")
+            QMessageBox.information(self, APP_TITLE, "Read-only removed from the loaded files.")
         except Exception as exc:
-            messagebox.showerror(APP_TITLE, str(exc))
+            QMessageBox.critical(self, APP_TITLE, str(exc))
 
     def restore_latest_backup(self) -> None:
         backups = sorted((self.repo_dir / "backups").glob("*"))
         backups = [item for item in backups if item.is_dir()]
         if not backups:
-            messagebox.showwarning(APP_TITLE, "No backup found.")
+            QMessageBox.warning(self, APP_TITLE, "No backup found.")
             return
         latest = backups[-1]
         try:
             restore_backup(latest, self.documents)
             self.load_documents()
-            messagebox.showinfo(APP_TITLE, f"Backup restored: {latest}")
+            QMessageBox.information(self, APP_TITLE, f"Backup restored: {latest}")
         except Exception as exc:
-            messagebox.showerror(APP_TITLE, str(exc))
+            QMessageBox.critical(self, APP_TITLE, str(exc))
+
+    def show_help(self) -> None:
+        QMessageBox.information(
+            self,
+            APP_TITLE,
+            "Use the sidebar to browse categories.\n"
+            "Mouse wheel scrolling is supported in the options panel.\n"
+            "Save Settings creates a backup and marks the files as read-only.",
+        )
+
+    def show_about(self) -> None:
+        QMessageBox.information(
+            self,
+            APP_TITLE,
+            "MW2 Campaign Configurator\n"
+            "PyQt6 portable build.\n"
+            "Edits only the campaign-effective files under players.",
+        )
 
 
 def main() -> None:
-    app = ConfiguratorApp()
-    app.mainloop()
+    app = QApplication(sys.argv)
+    window = QtConfiguratorWindow()
+    window.show()
+    sys.exit(app.exec())
 
 
 if __name__ == "__main__":
