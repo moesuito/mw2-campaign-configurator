@@ -140,3 +140,49 @@ def test_normal_mode_and_slider_classification(tmp_path):
     assert should_use_slider(resolution)
     assert should_use_slider(volume)
     assert not should_use_slider(static_shadow)
+
+
+def test_unsaved_changes_tracking_offscreen(tmp_path, monkeypatch):
+    game_dir = tmp_path / "Call of Duty MWII"
+    players_dir = game_dir / "players"
+    profile_dir = players_dir / "123456"
+    profile_dir.mkdir(parents=True)
+
+    options_path = players_dir / "options.3.cod22.cst"
+    settings_path = profile_dir / "settings.3.local.cod22.cst"
+
+    options_path.write_text(
+        '// Display\nDisplayMode:0.0 = "Windowed" // one of [Windowed, Fullscreen]\n',
+        encoding="utf-8",
+    )
+    settings_path.write_text(
+        '// Gameplay\nADSFovScaling:0.0 = "false"\n',
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+
+    from PyQt6.QtWidgets import QApplication
+    from mw2_campaign_configurator import QtConfiguratorWindow
+
+    app = QApplication.instance() or QApplication([])
+
+    w = QtConfiguratorWindow()
+    w.folder_edit.setText(str(game_dir))
+    w.reload_profiles(auto=False)
+
+    assert len(w.documents) == 2
+    assert not w.has_unsaved_changes()
+
+    # Mutate value in memory
+    entry = w.documents[0].entries[0]
+    entry.value = "Fullscreen"
+
+    assert w.has_unsaved_changes()
+    assert len(w.changed_entries()) == 1
+
+    # Revert in memory
+    entry.value = "Windowed"
+    assert not w.has_unsaved_changes()
+
+    w.close()

@@ -54,7 +54,7 @@ Download the latest portable executable from the GitHub Releases page:
 
 - `MW2CampaignConfigurator.exe`
 
-Put it anywhere you like and run it. Backups are created next to the executable under `backups\`.
+Put it anywhere you like and run it. Backups are created under a `backups\` folder next to the executable (for a portable build) or at the repo root (for a source run).
 
 ## Usage
 

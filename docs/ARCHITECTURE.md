@@ -84,6 +84,15 @@ FSR 1.0, FSR 2.0, CAS, SMAA, and XeSS are not RTX-gated. The UI presents them in
 
 When the selected anti-aliasing technique changes, the tree is re-rendered from cached entries and only relevant upscaler child settings remain visible.
 
+## Unsaved Changes & Resetting
+
+The app tracks whether settings have been modified relative to the last loaded or saved state:
+
+- On successful load, it takes a baseline snapshot of all entries' values (`loaded_values`).
+- Interactive edits on widgets trigger `on_value_edited()`, which captures values and updates a bottom status bar showing `Unsaved changes (N)`.
+- If there are unsaved changes, the app warns before destructive navigation (changing profiles, reloading, or changing folders).
+- A `Reset Selected` button reverts the selected setting to its baseline. For anti-aliasing (`AATechniquePreferred`), it reverts all unified AA and upscaler backing keys.
+
 ## Filesystem Safety
 
 The app edits only:
@@ -93,4 +102,4 @@ The app edits only:
 
 It does not edit `.csb`, hashed `.cfg`, MP, BR, DMZ, or co-op files.
 
-Backups are written under `backups\<timestamp>\` next to the executable in a portable build, or next to the repo root when run from source.
+Backups are written under `backups\<timestamp>\` next to the executable in a portable build, or next to the repo root when run from source. A button `Open Backups` in the bottom bar opens this folder directly in Explorer.

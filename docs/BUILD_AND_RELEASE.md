@@ -41,12 +41,15 @@ The offscreen smoke test may print a Qt font warning in this local environment. 
 1. Ensure `git status -sb` is clean or contains only intended changes.
 2. Run tests.
 3. Run `.\scripts\build.ps1`.
-4. Commit and push.
-5. Create a GitHub release:
-
-```powershell
-gh release create vX.Y.Z .\dist\MW2CampaignConfigurator.exe --title "vX.Y.Z" --notes "Release notes here."
-```
+4. Generate the SHA256 checksum for the release executable:
+   ```powershell
+   Get-FileHash .\dist\MW2CampaignConfigurator.exe -Algorithm SHA256
+   ```
+5. Commit and push.
+6. Create a GitHub release, pasting the SHA256 hash in the release description:
+   ```powershell
+   gh release create vX.Y.Z .\dist\MW2CampaignConfigurator.exe --title "vX.Y.Z" --notes "Release notes here with SHA256."
+   ```
 
 ## Version Notes
 
@@ -56,3 +59,4 @@ gh release create vX.Y.Z .\dist\MW2CampaignConfigurator.exe --title "vX.Y.Z" --n
 - `v0.2.1`: unified FSR/CAS/XeSS/DLSS upscaler selector, cleaner Normal-mode labels, and hidden Source column in Normal mode.
 - `v0.2.2`: Windows display mode dropdowns, simplified header, and read-only aware file lock toggle.
 - `v0.2.3`: startup home screen, direct lock/unlock actions, and save success toast with locked-file error handling.
+- `v0.3.0`: clearer first-run and missing-profile onboarding states on the home screen, save button state reflecting lock status, unsaved changes tracking with prompts, "Reset Selected" action for individual settings, and "Open Backups" explorer link.

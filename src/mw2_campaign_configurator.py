@@ -896,6 +896,9 @@ class QtConfiguratorWindow(QMainWindow):
         self.controls: dict[tuple[str, int], object] = {}
         self.current_section = ""
         self.game_dir = default_game_dir()
+        self.loaded_values: dict[tuple[str, int], str] = {}
+        self.current_profile = ""
+        self.is_rendering = False
 
         self.setWindowTitle(APP_TITLE)
         self.resize(1180, 760)
@@ -940,7 +943,7 @@ class QtConfiguratorWindow(QMainWindow):
         top_layout.addWidget(reload_button)
         top_layout.addWidget(QLabel("Profile"))
         self.profile_combo = QComboBox()
-        self.profile_combo.currentTextChanged.connect(lambda _value: self.load_documents())
+        self.profile_combo.currentTextChanged.connect(lambda _value: self.on_profile_changed())
         top_layout.addWidget(self.profile_combo)
         layout.addWidget(top)
 
@@ -976,15 +979,15 @@ class QtConfiguratorWindow(QMainWindow):
         home_layout.setContentsMargins(0, 0, 0, 0)
         home_layout.setSpacing(8)
         home_layout.addStretch(1)
-        home_title = QLabel("MW2 Campaign Configurator")
-        home_title.setObjectName("homeTitle")
-        home_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        home_layout.addWidget(home_title)
-        home_copy = QLabel("Edit campaign-effective Modern Warfare II settings files, manage presets, and control file locking from one portable tool.")
-        home_copy.setObjectName("homeCopy")
-        home_copy.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        home_copy.setWordWrap(True)
-        home_layout.addWidget(home_copy)
+        self.home_title = QLabel("MW2 Campaign Configurator")
+        self.home_title.setObjectName("homeTitle")
+        self.home_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        home_layout.addWidget(self.home_title)
+        self.home_copy = QLabel("Edit campaign-effective Modern Warfare II settings files, manage presets, and control file locking from one portable tool.")
+        self.home_copy.setObjectName("homeCopy")
+        self.home_copy.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.home_copy.setWordWrap(True)
+        home_layout.addWidget(self.home_copy)
         home_layout.addStretch(1)
         main_layout.addWidget(self.home_panel, 1)
 
@@ -1016,6 +1019,11 @@ class QtConfiguratorWindow(QMainWindow):
         clear_button = QPushButton("Clear")
         clear_button.clicked.connect(self.clear_filter)
         tools.addWidget(clear_button)
+        tools.addSpacing(12)
+        self.reset_button = QPushButton("Reset Selected")
+        self.reset_button.setEnabled(False)
+        self.reset_button.clicked.connect(self.reset_selected_setting)
+        tools.addWidget(self.reset_button)
         self.section_meta = QLabel("")
         self.section_meta.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         tools.addWidget(self.section_meta)
@@ -1031,6 +1039,7 @@ class QtConfiguratorWindow(QMainWindow):
         self.tree.header().setStretchLastSection(True)
         self.tree.setColumnWidth(0, 430)
         self.tree.setColumnWidth(1, 300)
+        self.tree.itemSelectionChanged.connect(self.update_reset_button_state)
         main_layout.addWidget(self.tree, 1)
         self.tools_panel.hide()
         self.tree.hide()
@@ -1043,21 +1052,28 @@ class QtConfiguratorWindow(QMainWindow):
         reload_settings = QPushButton("Reload Settings")
         reload_settings.clicked.connect(self.reload_profiles)
         footer_layout.addWidget(reload_settings)
-        save_settings = QPushButton("Save Settings")
-        save_settings.clicked.connect(self.save_all)
-        footer_layout.addWidget(save_settings)
+        self.save_button = QPushButton("Save Settings")
+        self.save_button.clicked.connect(self.save_all)
+        footer_layout.addWidget(self.save_button)
         self.lock_toggle_button = QPushButton("Unlock Files")
         self.lock_toggle_button.clicked.connect(self.toggle_file_lock)
         footer_layout.addWidget(self.lock_toggle_button)
         self.status_label = QLabel("Select the game folder.")
-        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         footer_layout.addWidget(self.status_label, 1)
+        self.dirty_label = QLabel("")
+        self.dirty_label.setStyleSheet("color: #ffa500; font-weight: bold; margin-left: 10px; margin-right: 10px;")
+        self.dirty_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        footer_layout.addWidget(self.dirty_label)
         about = QPushButton("About...")
         about.clicked.connect(self.show_about)
         footer_layout.addWidget(about)
         restore = QPushButton("Restore Backup")
         restore.clicked.connect(self.restore_latest_backup)
         footer_layout.addWidget(restore)
+        open_backups = QPushButton("Open Backups")
+        open_backups.clicked.connect(self.open_backup_folder)
+        footer_layout.addWidget(open_backups)
         layout.addWidget(footer)
 
         self.toast_label = QLabel(root)
@@ -1258,6 +1274,24 @@ class QtConfiguratorWindow(QMainWindow):
     def files_have_readonly(self) -> bool:
         return bool(self.documents) and any(is_readonly(doc.path) for doc in self.documents)
 
+    def set_home_message(self, title: str, copy: str) -> None:
+        if hasattr(self, "home_title") and hasattr(self, "home_copy"):
+            self.home_title.setText(title)
+            self.home_copy.setText(copy)
+
+    def update_save_button(self) -> None:
+        if not hasattr(self, "save_button"):
+            return
+        if not self.documents:
+            self.save_button.setEnabled(False)
+            self.save_button.setToolTip("Load a valid profile to save settings.")
+        elif self.files_have_readonly():
+            self.save_button.setEnabled(False)
+            self.save_button.setToolTip("Unlock files before saving.")
+        else:
+            self.save_button.setEnabled(True)
+            self.save_button.setToolTip("")
+
     def update_lock_button(self) -> None:
         if not hasattr(self, "lock_toggle_button"):
             return
@@ -1276,14 +1310,90 @@ class QtConfiguratorWindow(QMainWindow):
         self.lock_toggle_button.style().unpolish(self.lock_toggle_button)
         self.lock_toggle_button.style().polish(self.lock_toggle_button)
         self.lock_toggle_button.update()
+        self.update_save_button()
+
+    def has_unsaved_changes(self) -> bool:
+        return bool(self.changed_entries())
+
+    def changed_entries(self) -> dict[tuple[str, int], tuple[ConfigDocument, ConfigEntry]]:
+        self.capture_visible_controls(validate=False)
+        changed = {}
+        for doc in self.documents:
+            for entry in doc.entries:
+                key = (doc.label, entry.line_index)
+                baseline = self.loaded_values.get(key)
+                if baseline is not None and entry.value != baseline:
+                    changed[key] = (doc, entry)
+        return changed
+
+    def snapshot_loaded_values(self) -> None:
+        self.loaded_values.clear()
+        for doc in self.documents:
+            for entry in doc.entries:
+                self.loaded_values[(doc.label, entry.line_index)] = entry.value
+
+    def update_dirty_indicator(self) -> None:
+        if not self.documents:
+            self.dirty_label.setText("")
+            return
+        changed = self.changed_entries()
+        if changed:
+            count = len(changed)
+            self.dirty_label.setText(f"Unsaved changes ({count})")
+        else:
+            self.dirty_label.setText("")
+
+    def on_value_edited(self) -> None:
+        if self.is_rendering:
+            return
+        self.update_dirty_indicator()
+
+    def on_profile_changed(self) -> None:
+        if self.has_unsaved_changes():
+            reply = QMessageBox.question(
+                self,
+                "Unsaved Changes",
+                "You have unsaved changes. Do you want to discard them?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            if reply == QMessageBox.StandardButton.No:
+                blocked = self.profile_combo.blockSignals(True)
+                if self.current_profile:
+                    self.profile_combo.setCurrentText(self.current_profile)
+                self.profile_combo.blockSignals(blocked)
+                return
+        self.current_profile = self.profile_combo.currentText()
+        self.load_documents()
 
     def choose_game_dir(self) -> None:
+        if self.has_unsaved_changes():
+            reply = QMessageBox.question(
+                self,
+                "Unsaved Changes",
+                "You have unsaved changes. Do you want to discard them?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            if reply == QMessageBox.StandardButton.No:
+                return
         selected = QFileDialog.getExistingDirectory(self, "Select the Call of Duty MWII folder", self.folder_edit.text())
         if selected:
             self.folder_edit.setText(selected)
-            self.reload_profiles()
+            self.reload_profiles(auto=True)
 
     def reload_profiles(self, auto: bool = False) -> None:
+        if not auto and self.has_unsaved_changes():
+            reply = QMessageBox.question(
+                self,
+                "Unsaved Changes",
+                "You have unsaved changes. Do you want to discard them?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            if reply == QMessageBox.StandardButton.No:
+                return
+
         self.game_dir = pathlib.Path(self.folder_edit.text())
         profiles = discover_profiles(self.game_dir)
         if not profiles and auto:
@@ -1305,25 +1415,72 @@ class QtConfiguratorWindow(QMainWindow):
             self.load_documents()
         else:
             self.documents = []
+            self.loaded_values.clear()
+            self.update_dirty_indicator()
             self.render_options(capture=False)
+            
+            players_dir = self.game_dir / "players"
+            if not players_dir.exists():
+                self.set_home_message(
+                    "MWII Players Folder Not Found",
+                    "No 'players' folder was found at the selected path:\n"
+                    f"{players_dir}\n\n"
+                    "Guidance: Please make sure the Call of Duty MWII directory is correct. "
+                    "Use the Browse button to locate the folder, or run the game once to create it."
+                )
+            else:
+                self.set_home_message(
+                    "No Campaign Profile Found",
+                    "The 'players' folder exists, but no campaign profiles were found.\n\n"
+                    "Guidance: The campaign may need to be launched at least once. "
+                    "Close the game, then click Reload or browse for the folder."
+                )
             self.set_status("No valid profile found under players\\<profile-id>.")
             self.update_lock_button()
 
     def load_documents(self) -> None:
         profile = self.profile_combo.currentText()
+        self.current_profile = profile
         if not profile:
             return
         try:
             validate_game_dir(self.game_dir, profile)
             self.documents = [ConfigDocument.load(path, label) for path, label in target_paths(self.game_dir, profile)]
             self.enforce_hardware_constraints()
+            
+            self.snapshot_loaded_values()
+            self.update_dirty_indicator()
+            self.set_home_message(
+                "MW2 Campaign Configurator",
+                "Edit campaign-effective Modern Warfare II settings files, manage presets, and control file locking from one portable tool."
+            )
+            
             readonly = ", ".join(f"{doc.label}: {'RO' if is_readonly(doc.path) else 'RW'}" for doc in self.documents)
             total = sum(len(doc.entries) for doc in self.documents)
             self.set_status(f"{total} options loaded. {readonly}")
             self.render_options(capture=False)
             self.update_lock_button()
+        except FileNotFoundError as exc:
+            self.documents = []
+            self.loaded_values.clear()
+            self.update_dirty_indicator()
+            self.set_home_message(
+                "Required Configuration Files Missing",
+                f"{str(exc)}\n\n"
+                "Guidance: Make sure the campaign has been launched once to generate default configuration files. "
+                "Click Reload after they are created."
+            )
+            self.set_status("Required files missing for profile.")
+            self.render_options(capture=False)
+            self.update_lock_button()
         except Exception as exc:
             self.documents = []
+            self.loaded_values.clear()
+            self.update_dirty_indicator()
+            self.set_home_message(
+                "Error Loading Documents",
+                f"An unexpected error occurred while loading files:\n{str(exc)}"
+            )
             self.render_options(capture=False)
             self.update_lock_button()
             QMessageBox.critical(self, APP_TITLE, str(exc))
@@ -1530,58 +1687,63 @@ class QtConfiguratorWindow(QMainWindow):
     def render_options(self, capture: bool = True) -> None:
         if capture:
             self.capture_visible_controls(validate=False)
-        self.controls.clear()
-        self.tree.clear()
-        normal_mode = self.mode_combo.currentText() == "Normal"
-        self.tree.setColumnHidden(1, normal_mode)
+        self.is_rendering = True
+        try:
+            self.controls.clear()
+            self.tree.clear()
+            normal_mode = self.mode_combo.currentText() == "Normal"
+            self.tree.setColumnHidden(1, normal_mode)
 
-        grouped = self.entries_by_section()
-        if not grouped:
-            self.render_sidebar([])
-            QTreeWidgetItem(self.tree, ["No options loaded.", "", ""])
-            self.section_title.setText("Settings")
-            self.section_meta.setText("")
-            self.show_options_screen()
-            return
+            grouped = self.entries_by_section()
+            if not grouped:
+                self.render_sidebar([])
+                QTreeWidgetItem(self.tree, ["No options loaded.", "", ""])
+                self.section_title.setText("Settings")
+                self.section_meta.setText("")
+                self.show_options_screen()
+                return
 
-        sections = sorted(grouped)
-        self.render_sidebar(sections)
-        if not self.current_section:
-            self.show_home_screen()
-            return
-        if self.current_section not in grouped:
-            self.current_section = ""
+            sections = sorted(grouped)
             self.render_sidebar(sections)
-            self.show_home_screen()
-            return
+            if not self.current_section:
+                self.show_home_screen()
+                return
+            if self.current_section not in grouped:
+                self.current_section = ""
+                self.render_sidebar(sections)
+                self.show_home_screen()
+                return
 
-        entries = grouped[self.current_section]
-        self.section_title.setText(self.current_section)
-        mode_note = self.mode_combo.currentText()
-        self.section_meta.setText(f"{len(entries)} options · {mode_note}")
-        self.show_options_screen()
+            entries = grouped[self.current_section]
+            self.section_title.setText(self.current_section)
+            mode_note = self.mode_combo.currentText()
+            self.section_meta.setText(f"{len(entries)} options · {mode_note}")
+            self.show_options_screen()
 
-        by_subcategory: dict[str, list[tuple[ConfigDocument, ConfigEntry]]] = {}
-        for doc, entry in entries:
-            by_subcategory.setdefault(entry_subcategory(entry), []).append((doc, entry))
+            by_subcategory: dict[str, list[tuple[ConfigDocument, ConfigEntry]]] = {}
+            for doc, entry in entries:
+                by_subcategory.setdefault(entry_subcategory(entry), []).append((doc, entry))
 
-        for subcategory, sub_entries in sorted(by_subcategory.items()):
-            parent = QTreeWidgetItem(self.tree, [subcategory, "", ""])
-            parent.setFirstColumnSpanned(True)
-            parent.setExpanded(True)
-            parent.setFlags(parent.flags() & ~Qt.ItemFlag.ItemIsSelectable)
-            for doc, entry in sub_entries:
-                label = self.display_label(entry)
-                item = QTreeWidgetItem(parent, [label, f"{doc.label} / {entry.token}", ""])
-                item.setToolTip(0, entry.key)
-                self.tree.setItemWidget(item, 2, self.create_value_widget(doc, entry))
+            for subcategory, sub_entries in sorted(by_subcategory.items()):
+                parent = QTreeWidgetItem(self.tree, [subcategory, "", ""])
+                parent.setFirstColumnSpanned(True)
+                parent.setExpanded(True)
+                parent.setFlags(parent.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+                for doc, entry in sub_entries:
+                    label = self.display_label(entry)
+                    item = QTreeWidgetItem(parent, [label, f"{doc.label} / {entry.token}", ""])
+                    item.setToolTip(0, entry.key)
+                    item.setData(0, Qt.ItemDataRole.UserRole, (doc.label, entry.line_index))
+                    self.tree.setItemWidget(item, 2, self.create_value_widget(doc, entry))
 
-        self.tree.expandAll()
-        if normal_mode:
-            self.tree.setColumnWidth(0, 620)
-        else:
-            self.tree.setColumnWidth(0, 430)
-            self.tree.setColumnWidth(1, 300)
+            self.tree.expandAll()
+            if normal_mode:
+                self.tree.setColumnWidth(0, 620)
+            else:
+                self.tree.setColumnWidth(0, 430)
+                self.tree.setColumnWidth(1, 300)
+        finally:
+            self.is_rendering = False
 
     def display_label(self, entry: ConfigEntry) -> str:
         if self.mode_combo.currentText() == "Normal":
@@ -1601,12 +1763,14 @@ class QtConfiguratorWindow(QMainWindow):
                     break
             widget.setCurrentIndex(current_index)
             widget.currentTextChanged.connect(lambda _value, item=entry, combo=widget: self.on_monitor_changed(item, combo))
+            widget.currentIndexChanged.connect(lambda _: self.on_value_edited())
         elif entry.key == "Resolution" and self.resolution_choices():
             widget = QComboBox()
             widget.addItems(self.resolution_choices())
             if entry.value:
                 widget.setCurrentText(entry.value)
             widget.currentTextChanged.connect(lambda value, item=entry: self.on_resolution_changed(item, value))
+            widget.currentIndexChanged.connect(lambda _: self.on_value_edited())
         elif entry.key == "RefreshRate" and self.refresh_choices():
             widget = QComboBox()
             for label, value in self.refresh_choices():
@@ -1617,9 +1781,11 @@ class QtConfiguratorWindow(QMainWindow):
                 if data == current_value or (self.is_number(data) and self.is_number(current_value) and int(float(data)) == int(round(float(current_value)))):
                     widget.setCurrentIndex(index)
                     break
+            widget.currentIndexChanged.connect(lambda _: self.on_value_edited())
         elif entry.kind == "bool":
             widget = QCheckBox()
             widget.setChecked(entry.value == "true")
+            widget.toggled.connect(lambda _: self.on_value_edited())
         elif entry.kind == "choice":
             widget = QComboBox()
             choices = self.unified_aa_choices() if entry.key == "AATechniquePreferred" else filtered_aa_choices(entry, self.has_rtx_gpu())
@@ -1631,9 +1797,11 @@ class QtConfiguratorWindow(QMainWindow):
             widget.setCurrentText(current)
             if entry.key == "AATechniquePreferred":
                 widget.currentTextChanged.connect(lambda value, item=entry: self.on_aa_changed(item, value))
+            widget.currentIndexChanged.connect(lambda _: self.on_value_edited())
         elif entry.kind == "range":
             if should_use_slider(entry):
                 widget = SliderEditor(entry)
+                widget.spin.valueChanged.connect(lambda _: self.on_value_edited())
             else:
                 widget = QDoubleSpinBox()
                 bounds = entry.range_bounds or (0.0, 1.0)
@@ -1644,8 +1812,10 @@ class QtConfiguratorWindow(QMainWindow):
                     widget.setValue(float(entry.value))
                 except ValueError:
                     widget.setValue(bounds[0])
+                widget.valueChanged.connect(lambda _: self.on_value_edited())
         else:
             widget = QLineEdit(entry.value)
+            widget.textChanged.connect(lambda _: self.on_value_edited())
 
         widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.controls[key] = widget
@@ -1747,10 +1917,70 @@ class QtConfiguratorWindow(QMainWindow):
                 changed += 1
         self.enforce_hardware_constraints()
         self.render_options(capture=False)
+        self.update_dirty_indicator()
         note = f"Preset loaded on screen: {changed} options."
         if skipped:
             note += f" Skipped by validation: {len(skipped)}."
         self.set_status(note)
+
+    def update_reset_button_state(self) -> None:
+        selected = self.tree.selectedItems()
+        if not selected:
+            self.reset_button.setEnabled(False)
+            return
+        item = selected[0]
+        data = item.data(0, Qt.ItemDataRole.UserRole)
+        if data is not None:
+            self.reset_button.setEnabled(True)
+        else:
+            self.reset_button.setEnabled(False)
+
+    def reset_selected_setting(self) -> None:
+        selected = self.tree.selectedItems()
+        if not selected:
+            return
+        item = selected[0]
+        data = item.data(0, Qt.ItemDataRole.UserRole)
+        if not data:
+            return
+        doc_label, line_index = data
+
+        target_entry = None
+        for doc in self.documents:
+            if doc.label == doc_label:
+                for entry in doc.entries:
+                    if entry.line_index == line_index:
+                        target_entry = entry
+                        break
+
+        if target_entry is None:
+            return
+
+        if target_entry.key == "AATechniquePreferred":
+            for doc in self.documents:
+                for entry in doc.entries:
+                    if entry.key == "AATechniquePreferred" or entry.key == "AMDSuperResolution" or entry.key in UPSCALER_CONFIG_KEYS:
+                        key = (doc.label, entry.line_index)
+                        if key in self.loaded_values:
+                            entry.value = self.loaded_values[key]
+        else:
+            key = (doc_label, line_index)
+            if key in self.loaded_values:
+                target_entry.value = self.loaded_values[key]
+
+        self.enforce_hardware_constraints()
+        self.render_options(capture=False)
+        self.update_dirty_indicator()
+        self.update_reset_button_state()
+
+    def open_backup_folder(self) -> None:
+        path = self.repo_dir / "backups"
+        path.mkdir(parents=True, exist_ok=True)
+        try:
+            import os
+            os.startfile(str(path))
+        except Exception as exc:
+            QMessageBox.critical(self, APP_TITLE, f"Failed to open backup folder:\n{str(exc)}")
 
     def save_all(self) -> None:
         if not self.documents:
