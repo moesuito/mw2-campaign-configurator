@@ -12,7 +12,7 @@ The script:
 
 1. Creates `.venv` if needed.
 2. Installs `requirements-dev.txt`.
-3. Regenerates `assets\app.ico`.
+3. Regenerates `assets\app.ico` and `assets\favicon.ico`.
 4. Runs PyInstaller with `--onefile`, `--windowed`, and the app icon.
 
 Output:

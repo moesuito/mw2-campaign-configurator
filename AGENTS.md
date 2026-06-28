@@ -105,6 +105,5 @@ The next visual polish pass is documented in [`docs/HANDOFF.md`](docs/HANDOFF.md
 
 Do not treat these as regressions in the current release:
 
-- Icon/fav/taskbar polish is still incomplete.
 - The startup home screen needs more precise centering.
 - Graphics dropdown values need friendly in-game style display labels while preserving raw config values on disk.

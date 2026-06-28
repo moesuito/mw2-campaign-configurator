@@ -59,3 +59,5 @@ if __name__ == "__main__":
     icon.save(ASSETS / "app.png")
     icon.save(ASSETS / "app.ico", sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
     print(ASSETS / "app.ico")
+    icon.save(ASSETS / "favicon.ico", sizes=[(16, 16), (32, 32), (48, 48)])
+    print(ASSETS / "favicon.ico")

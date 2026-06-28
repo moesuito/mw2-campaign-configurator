@@ -136,9 +136,16 @@ py -m pytest .\tests
 
 ## Known Issues
 
-- The custom icon is embedded in the portable executable, but it may not appear consistently as the Windows taskbar icon yet. There is also no repository/app favicon asset.
 - The startup home screen content is not perfectly centered in the available content area on all window sizes.
 - Some graphics dropdown values still show raw config tokens, such as `TEXTURE_FILTER_ANISO16X` or `R_GTAO_QUALITY_HIGH`, instead of polished in-game style labels.
+
+## Assets
+
+The repository contains the following icon and graphic assets under `assets/`:
+
+- `app.png`: The source high-resolution PNG image of the application icon.
+- `app.ico`: The Windows-compatible icon file compiled with multiple sizes (16, 24, 32, 48, 64, 128, 256).
+- `favicon.ico`: A favicon-style icon asset compiled with standard sizes (16, 32, 48) for web/repository/documentation usage.
 
 ## License
 

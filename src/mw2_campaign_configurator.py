@@ -2059,7 +2059,20 @@ class QtConfiguratorWindow(QMainWindow):
 
 
 def main() -> None:
+    if sys.platform == "win32":
+        try:
+            myappid = "moesuito.mw2campaignconfigurator"
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+        except Exception:
+            pass
+
     app = QApplication(sys.argv)
+
+    repo_dir = app_data_dir()
+    icon_path = repo_dir / "assets" / "app.ico"
+    if icon_path.exists():
+        app.setWindowIcon(QIcon(str(icon_path)))
+
     window = QtConfiguratorWindow()
     window.show()
     sys.exit(app.exec())
