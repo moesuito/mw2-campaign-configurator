@@ -96,6 +96,27 @@ def test_dlss_choices_require_rtx_gpu(tmp_path):
     assert "DLAA" not in filtered_aa_choices(aa_entry, has_rtx=False)
     assert is_entry_visible_for_aa(dlss_entry, "DLSS")
     assert not is_entry_visible_for_aa(xess_entry, "DLSS")
+    assert is_entry_visible_for_aa(xess_entry, "XeSS")
+
+
+def test_fsr_visibility_is_not_rtx_gated(tmp_path):
+    path = tmp_path / "options.3.cod22.cst"
+    path.write_text(
+        '// Graphics\n'
+        'AMDSuperResolution:0.0 = "Off" // one of [Off, CAS - Sharpening only, AMD FSR 1.0]\n'
+        'AMDSuperResolutionQuality:0.0 = "Maximum Quality" // one of [Maximum Performance, Balanced, Maximum Quality, Ultra Quality]\n'
+        'AATechniquePreferred:0.1 = "5" // one of [SMAA T2x, Filmic SMAA T2x, DLSS, DLAA, XeSS, FSR2]\n'
+        'AMDSuperResolution2Quality:0.0 = "Balanced" // one of [Maximum Performance, Balanced, Maximum Quality, Ultra Quality]\n',
+        encoding="utf-8",
+    )
+
+    doc = ConfigDocument.load(path, "Options")
+    fsr1_toggle, fsr1_quality, fsr2_selector, fsr2_quality = doc.entries
+
+    assert "FSR2" in filtered_aa_choices(fsr2_selector, has_rtx=False)
+    assert is_entry_visible_for_aa(fsr1_quality, "AMD FSR 1.0")
+    assert is_entry_visible_for_aa(fsr2_quality, "FSR 2.0")
+    assert not is_entry_visible_for_aa(fsr1_toggle, "AMD FSR 1.0")
 
 
 def test_normal_mode_and_slider_classification(tmp_path):

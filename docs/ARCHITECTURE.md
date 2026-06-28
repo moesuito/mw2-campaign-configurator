@@ -51,6 +51,8 @@ The tree layout intentionally groups settings by behavior rather than raw file o
 
 `Normal` mode uses `NORMAL_MODE_KEYS` to show common settings that map closely to the in-game menus.
 
+Normal mode also uses `NORMAL_LABELS` for cleaner labels and hides the technical `Source` column.
+
 `Advanced` mode shows every parsed readable option, except options hidden by hardware/upscaler filtering.
 
 The Normal list is intentionally conservative. When adding a key to Normal mode, verify that it is a user-facing option or a clearly useful equivalent.
@@ -62,9 +64,12 @@ Upscaler behavior is controlled by:
 - `UPSCALER_CONFIG_KEYS`
 - `UPSCALER_VISIBLE_KEYS`
 - `RTX_ONLY_AA_CHOICES`
+- unified selector helpers such as `unified_aa_choices()` and `set_unified_aa_selection()`
 - `is_rtx_gpu_name()`
 
 The app reads `GPUName:0.0` from the config. DLSS and DLAA remain visible only when the GPU name contains both `NVIDIA` and `RTX`.
+
+FSR 1.0, FSR 2.0, CAS, SMAA, and XeSS are not RTX-gated. The UI presents them in one upscaler selector even though the game stores them across multiple config keys, including `AATechniquePreferred:0.0`, `AATechniquePreferred:0.1`, and `AMDSuperResolution:0.0`.
 
 When the selected anti-aliasing technique changes, the tree is re-rendered from cached entries and only relevant upscaler child settings remain visible.
 

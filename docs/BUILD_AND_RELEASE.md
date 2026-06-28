@@ -53,3 +53,4 @@ gh release create vX.Y.Z .\dist\MW2CampaignConfigurator.exe --title "vX.Y.Z" --n
 - `v0.1.0`: initial Tkinter release.
 - `v0.1.1`: upscaler filtering and white panel fix.
 - `v0.2.0`: PyQt6 dark-mode UI, native mouse-wheel scrolling, tree subcategories, Normal/Advanced modes, sliders.
+- `v0.2.1`: unified FSR/CAS/XeSS/DLSS upscaler selector, cleaner Normal-mode labels, and hidden Source column in Normal mode.

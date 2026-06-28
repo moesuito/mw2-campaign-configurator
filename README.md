@@ -13,6 +13,7 @@ The campaign settings screen can fail to save changes in some current game build
 - Left sidebar with the original game categories: Accessibility, Audio, Display, Gameplay, Graphics, Interface, Mouse and Gamepad, System, and Touch.
 - Normal and Advanced modes:
   - `Normal` focuses on the main in-game menu style options.
+  - `Normal` uses cleaner in-game style labels and hides technical source paths.
   - `Advanced` also shows extra readable config fields exposed by the files.
 - Tree-style subcategories inside each section, including grouped anti-aliasing/upscaler controls.
 - Automatically detects the default `Documents\Call of Duty MWII` folder.
@@ -26,7 +27,8 @@ The campaign settings screen can fail to save changes in some current game build
   - text inputs for free-form values
 - Includes quick presets: Low FPS, Balanced, High, Ultra, and Competitive.
 - Shows only the relevant upscaler settings for the selected anti-aliasing technique.
-- Hides DLSS and DLAA on non-RTX GPUs based on the detected `GPUName` value.
+- Uses one unified upscaler selector for SMAA, DLSS, DLAA, XeSS, FSR 2.0, CAS, and AMD FSR 1.0.
+- Hides only DLSS and DLAA on non-RTX GPUs based on the detected `GPUName` value. FSR and XeSS remain available across GPU vendors.
 - Creates timestamped backups before saving.
 - Saves and reapplies read-only attributes to the edited files.
 - Portable `.exe`, no installer required.

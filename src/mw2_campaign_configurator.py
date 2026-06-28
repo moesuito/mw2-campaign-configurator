@@ -77,6 +77,9 @@ UPSCALER_VISIBLE_KEYS = {
     "DLAA": {"DLSSSharpness"},
     "XeSS": {"XeSSQuality"},
     "FSR2": {"AMDSuperResolution2Quality"},
+    "FSR 2.0": {"AMDSuperResolution2Quality"},
+    "AMD FSR 1.0": {"AMDSuperResolutionQuality"},
+    "CAS - Sharpening only": {"AMDContrastAdaptiveSharpeningStrength"},
     "SMAA T2x": {"DefaultSMAATechnique", "SMAAQuality"},
     "Filmic SMAA T2x": {"DefaultSMAATechnique", "SMAAQuality"},
 }
@@ -189,6 +192,91 @@ NON_SLIDER_RANGE_KEYS = {
     "WindowX",
     "WindowY",
 }
+NORMAL_LABELS = {
+    "AATechniquePreferred": "Upscaling / Anti-Aliasing",
+    "AMDContrastAdaptiveSharpeningStrength": "CAS Strength",
+    "AMDSuperResolution2Quality": "FSR 2.0 Quality",
+    "AMDSuperResolutionQuality": "FSR 1.0 Quality",
+    "AspectRatio": "Aspect Ratio",
+    "Brightness": "Brightness",
+    "BulletImpacts": "Bullet Impacts",
+    "CapFps": "Custom Frame Rate Limit",
+    "CinematicVolume": "Cinematic Volume",
+    "DLSSPerfMode": "DLSS Quality",
+    "DLSSSharpness": "DLSS Sharpness",
+    "DefaultSMAATechnique": "SMAA Mode",
+    "DeferredPhysics": "Deferred Physics Quality",
+    "DepthOfField": "Depth of Field",
+    "DisplayGamma": "Display Gamma",
+    "DisplayMode": "Display Mode",
+    "DynamicSceneResolution": "Dynamic Resolution",
+    "DynamicSceneResolutionTarget": "Dynamic Resolution Target",
+    "EffectsVolume": "Effects Volume",
+    "FilmGrain": "Film Grain",
+    "FilmicStrength": "Filmic Strength",
+    "Fov": "Field of View",
+    "GTAOQuality": "Ambient Occlusion Quality",
+    "HDR": "HDR",
+    "HitMarkersVolume": "Hit Marker Volume",
+    "HUDHorizBound": "Horizontal HUD Bounds",
+    "HUDVertBound": "Vertical HUD Bounds",
+    "LicensedContentVolume": "Licensed Content Volume",
+    "LicensedMusicVolume": "Licensed Music Volume",
+    "ModelLodDistanceQuality": "Level of Detail Distance",
+    "ModelLodQuality": "Model Quality",
+    "MonoSound": "Mono Audio",
+    "MonoSoundAmount": "Mono Amount",
+    "MouseAcceleration": "Mouse Acceleration",
+    "MouseFilter": "Mouse Filtering",
+    "MouseHorizontalSensibility": "Mouse Sensitivity",
+    "MouseInvertPitch": "Invert Mouse Look",
+    "MouseMonitorDistanceCoeff": "Monitor Distance Coefficient",
+    "MouseSmoothing": "Mouse Smoothing",
+    "MouseVerticalSensibility": "Vertical Sensitivity Multiplier",
+    "MusicVolume": "Music Volume",
+    "MuteAudioWhileOutOfFocus": "Mute When Out of Focus",
+    "NVIDIAImageScaling": "NVIDIA Image Scaling",
+    "NVIDIAImageScalingQuality": "NVIDIA Image Scaling Quality",
+    "NVIDIAImageScalingSharpness": "NVIDIA Image Scaling Sharpness",
+    "NvidiaReflex": "NVIDIA Reflex Low Latency",
+    "ParticleLighting": "Particle Lighting",
+    "ParticleQualityLevel": "Particle Quality",
+    "ParticuleResolution": "Particle Resolution",
+    "PreferredDisplayMode": "Preferred Display Mode",
+    "RefreshRate": "Refresh Rate",
+    "Resolution": "Display Resolution",
+    "ResolutionMultiplier": "Render Resolution Scale",
+    "SMAAQuality": "SMAA Quality",
+    "SSAOTechnique": "Ambient Occlusion",
+    "SSRMode": "Screen Space Reflections",
+    "ScreenSpaceShadowQuality": "Screen Space Shadows",
+    "ShaderQuality": "Shader Quality",
+    "ShadowMapResolution": "Shadow Map Resolution",
+    "SpotShadowCacheSize": "Spot Shadow Cache",
+    "SpotShadowQualityLevel": "Spot Shadow Quality",
+    "SunShadowCascade": "Sun Shadow Quality",
+    "Tessellation": "Tessellation",
+    "TextureFilter": "Texture Filtering",
+    "TextureQuality": "Texture Resolution",
+    "ThirdPersonFov": "3rd Person Field of View",
+    "UiQuality": "UI Quality",
+    "VSync": "V-Sync",
+    "VSyncInMenu": "Menu V-Sync",
+    "VideoMemoryScale": "Video Memory Scale",
+    "VoiceChat": "Voice Chat",
+    "VoiceChatEffect": "Voice Chat Effect",
+    "VoiceChatVolume": "Voice Chat Volume",
+    "VoiceInputDevice": "Voice Input Device",
+    "VoicePushToTalk": "Push to Talk",
+    "VoiceVolume": "Dialogue Volume",
+    "Volume": "Master Volume",
+    "VolumetricQuality": "Volumetric Quality",
+    "WarTracksVolume": "War Tracks Volume",
+    "WaterCausticsMode": "Water Caustics",
+    "WeatherGridVolumesQuality": "Weather Grid Volumes",
+    "WorldStreamingQuality": "On-Demand Texture Streaming",
+    "XeSSQuality": "XeSS Quality",
+}
 
 
 @dataclass
@@ -289,6 +377,10 @@ def filtered_aa_choices(entry: ConfigEntry, has_rtx: bool) -> list[str]:
 
 
 def is_entry_visible_for_aa(entry: ConfigEntry, selected_aa: str) -> bool:
+    if entry.token == "AATechniquePreferred:0.1":
+        return False
+    if entry.key == "AMDSuperResolution":
+        return False
     if entry.key not in UPSCALER_CONFIG_KEYS:
         return True
     return entry.key in UPSCALER_VISIBLE_KEYS.get(selected_aa, set())
@@ -1006,11 +1098,62 @@ class QtConfiguratorWindow(QMainWindow):
     def has_rtx_gpu(self) -> bool:
         return is_rtx_gpu_name(self.gpu_name())
 
+    def aa_entries(self) -> list[ConfigEntry]:
+        return [entry for entry in self.all_entries() if entry.key == "AATechniquePreferred"]
+
+    def amd_super_resolution_entry(self) -> ConfigEntry | None:
+        return self.entry_by_token("AMDSuperResolution:0.0")
+
+    def unified_aa_choices(self) -> list[str]:
+        choices: list[str] = []
+        for entry in self.aa_entries():
+            for choice in entry.choices:
+                label = "FSR 2.0" if choice == "FSR2" else choice
+                if label not in choices:
+                    choices.append(label)
+
+        amd_entry = self.amd_super_resolution_entry()
+        if amd_entry:
+            for choice in amd_entry.choices:
+                if choice != "Off" and choice not in choices:
+                    choices.append(choice)
+
+        if not self.has_rtx_gpu():
+            choices = [choice for choice in choices if choice not in RTX_ONLY_AA_CHOICES]
+        return choices
+
     def current_aa_label(self) -> str:
-        preferred = self.entry_by_token("AATechniquePreferred:0.0") or self.entry_by_token("AATechniquePreferred:0.1")
+        amd_entry = self.amd_super_resolution_entry()
+        if amd_entry and amd_entry.value in {"AMD FSR 1.0", "CAS - Sharpening only"}:
+            return amd_entry.value
+
+        preferred = self.entry_by_token("AATechniquePreferred:0.1") or self.entry_by_token("AATechniquePreferred:0.0")
         if not preferred:
             return ""
-        return choice_label_for_value(preferred, preferred.value)
+        label = choice_label_for_value(preferred, preferred.value)
+        return "FSR 2.0" if label == "FSR2" else label
+
+    def set_choice_if_supported(self, entry: ConfigEntry, label: str) -> bool:
+        raw_label = "FSR2" if label == "FSR 2.0" else label
+        if raw_label not in entry.choices:
+            return False
+        entry.value = choice_value_for_label(entry, raw_label)
+        return True
+
+    def set_unified_aa_selection(self, label: str) -> None:
+        amd_entry = self.amd_super_resolution_entry()
+        if amd_entry:
+            if label in {"AMD FSR 1.0", "CAS - Sharpening only"}:
+                amd_entry.value = label
+            elif "Off" in amd_entry.choices:
+                amd_entry.value = "Off"
+
+        aa_label = "FSR 2.0" if label == "FSR 2.0" else label
+        if label in {"AMD FSR 1.0", "CAS - Sharpening only"}:
+            aa_label = "SMAA T2x"
+
+        for entry in self.aa_entries():
+            self.set_choice_if_supported(entry, aa_label)
 
     def enforce_hardware_constraints(self) -> None:
         if self.has_rtx_gpu():
@@ -1023,6 +1166,8 @@ class QtConfiguratorWindow(QMainWindow):
             if current in RTX_ONLY_AA_CHOICES and choices:
                 fallback = "SMAA T2x" if "SMAA T2x" in choices else choices[0]
                 entry.value = choice_value_for_label(entry, fallback)
+        if self.current_aa_label() in RTX_ONLY_AA_CHOICES:
+            self.set_unified_aa_selection("SMAA T2x")
 
     def entries_by_section(self) -> dict[str, list[tuple[ConfigDocument, ConfigEntry]]]:
         needle = self.search_edit.text().strip().lower()
@@ -1038,7 +1183,8 @@ class QtConfiguratorWindow(QMainWindow):
                 haystack = " ".join([entry.key, entry.description, entry.section, doc.label]).lower()
                 if needle and needle not in haystack:
                     continue
-                grouped.setdefault(entry.section, []).append((doc, entry))
+                section = "Graphics" if entry.key == "AATechniquePreferred" or entry.key in UPSCALER_CONFIG_KEYS else entry.section
+                grouped.setdefault(section, []).append((doc, entry))
         return grouped
 
     def clear_filter(self) -> None:
@@ -1068,6 +1214,8 @@ class QtConfiguratorWindow(QMainWindow):
             self.capture_visible_controls(validate=False)
         self.controls.clear()
         self.tree.clear()
+        normal_mode = self.mode_combo.currentText() == "Normal"
+        self.tree.setColumnHidden(1, normal_mode)
 
         grouped = self.entries_by_section()
         if not grouped:
@@ -1097,11 +1245,22 @@ class QtConfiguratorWindow(QMainWindow):
             parent.setExpanded(True)
             parent.setFlags(parent.flags() & ~Qt.ItemFlag.ItemIsSelectable)
             for doc, entry in sub_entries:
-                item = QTreeWidgetItem(parent, [entry.description or entry.key, f"{doc.label} / {entry.token}", ""])
+                label = self.display_label(entry)
+                item = QTreeWidgetItem(parent, [label, f"{doc.label} / {entry.token}", ""])
                 item.setToolTip(0, entry.key)
                 self.tree.setItemWidget(item, 2, self.create_value_widget(doc, entry))
 
         self.tree.expandAll()
+        if normal_mode:
+            self.tree.setColumnWidth(0, 620)
+        else:
+            self.tree.setColumnWidth(0, 430)
+            self.tree.setColumnWidth(1, 300)
+
+    def display_label(self, entry: ConfigEntry) -> str:
+        if self.mode_combo.currentText() == "Normal":
+            return NORMAL_LABELS.get(entry.key, entry.description or entry.key)
+        return entry.description or entry.key
 
     def create_value_widget(self, doc: ConfigDocument, entry: ConfigEntry) -> QWidget:
         key = (doc.label, entry.line_index)
@@ -1110,12 +1269,12 @@ class QtConfiguratorWindow(QMainWindow):
             widget.setChecked(entry.value == "true")
         elif entry.kind == "choice":
             widget = QComboBox()
-            choices = filtered_aa_choices(entry, self.has_rtx_gpu())
+            choices = self.unified_aa_choices() if entry.key == "AATechniquePreferred" else filtered_aa_choices(entry, self.has_rtx_gpu())
             widget.addItems(choices)
-            current = display_value_for_entry(entry)
+            current = self.current_aa_label() if entry.key == "AATechniquePreferred" else display_value_for_entry(entry)
             if entry.key == "AATechniquePreferred" and current not in choices and choices:
                 current = choices[0]
-                entry.value = choice_value_for_label(entry, current)
+                self.set_unified_aa_selection(current)
             widget.setCurrentText(current)
             if entry.key == "AATechniquePreferred":
                 widget.currentTextChanged.connect(lambda value, item=entry: self.on_aa_changed(item, value))
@@ -1167,6 +1326,9 @@ class QtConfiguratorWindow(QMainWindow):
             if isinstance(widget, QCheckBox):
                 value = "true" if widget.isChecked() else "false"
             elif isinstance(widget, QComboBox):
+                if entry.key == "AATechniquePreferred":
+                    self.set_unified_aa_selection(widget.currentText())
+                    continue
                 value = choice_value_for_label(entry, widget.currentText())
             elif isinstance(widget, QDoubleSpinBox):
                 value = self.format_number(entry, widget.value())
@@ -1188,7 +1350,7 @@ class QtConfiguratorWindow(QMainWindow):
         return str(int(round(value)))
 
     def on_aa_changed(self, entry: ConfigEntry, value: str) -> None:
-        entry.value = choice_value_for_label(entry, value)
+        self.set_unified_aa_selection(value)
         self.enforce_hardware_constraints()
         self.render_options(capture=False)
 

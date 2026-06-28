@@ -7,7 +7,7 @@ This file is for future coding agents working on this repo.
 - Repo: `D:\Antigravity\mw2-campaign-configurator`
 - GitHub: `https://github.com/moesuito/mw2-campaign-configurator`
 - Main branch: `main`
-- Current planned release: `v0.2.0`
+- Current planned release: `v0.2.1`
 - App framework: PyQt6
 - Packaging: PyInstaller one-file portable executable
 
@@ -19,6 +19,7 @@ This file is for future coding agents working on this repo.
 - UI should stay inspired by BF4 Settings Editor, but not copy third-party branding.
 - Prefer a practical, easy UI over exposing every raw config field by default.
 - `Normal` mode should be global across all categories.
+- `Normal` mode should use polished labels and hide technical source paths.
 - `Advanced` mode should expose extra config fields from the readable files.
 - Do not edit MP/BR/DMZ/CP files.
 - Keep the executable portable for now.
@@ -30,10 +31,12 @@ This file is for future coding agents working on this repo.
 - `QTreeWidget` is used for the central settings view. Mouse-wheel scrolling should work natively.
 - `SliderEditor` is used for practical ranged values and preserves numeric formatting on save.
 - `NORMAL_MODE_KEYS` controls what appears in Normal mode.
+- `NORMAL_LABELS` controls nicer Normal-mode labels.
 - `entry_subcategory()` controls tree grouping.
 - `should_use_slider()` controls whether a range becomes a slider.
 - `UPSCALER_VISIBLE_KEYS` controls which subsettings appear for DLSS/XeSS/FSR/SMAA.
-- `is_rtx_gpu_name()` currently checks for both `NVIDIA` and `RTX` in `GPUName:0.0`.
+- `unified_aa_choices()` presents SMAA, DLSS, DLAA, XeSS, FSR 2.0, CAS, and AMD FSR 1.0 in one selector.
+- `is_rtx_gpu_name()` currently checks for both `NVIDIA` and `RTX` in `GPUName:0.0`; only DLSS and DLAA are RTX-gated.
 
 ## Common Tasks
 
@@ -79,3 +82,10 @@ $env:QT_QPA_PLATFORM='offscreen'
 - Added global Normal/Advanced modes.
 - Added sliders with numeric inputs for practical ranged settings.
 - Kept cached config data in RAM during UI navigation.
+
+## Release Notes Draft for v0.2.1
+
+- Added FSR 2.0, AMD FSR 1.0, and CAS to the unified upscaler selector.
+- Kept FSR/CAS/XeSS available across GPU vendors while gating only DLSS/DLAA to RTX GPUs.
+- Hid the Source column in Normal mode.
+- Added cleaner in-game style labels in Normal mode while keeping Advanced mode more file-faithful.
